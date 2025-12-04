@@ -111,6 +111,9 @@ export default function Catalog() {
         // POST /cart/add → backend gère la vérification du stock
         await api.addToCart({ product_id: p.id, qty: 1 });
         
+        // Déclencher un événement pour mettre à jour l'icône du panier
+        window.dispatchEvent(new Event('cartUpdated'));
+        
         // Afficher un message de succès à l'utilisateur
         setMsg(`${p.name} ajouté au panier`);
         

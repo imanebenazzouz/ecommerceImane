@@ -85,6 +85,10 @@ export default function ProductDetail() {
     try {
       if (isAuthenticated()) {
         await api.addToCart({ product_id: product.id, qty: 1 });
+        
+        // Déclencher un événement pour mettre à jour l'icône du panier
+        window.dispatchEvent(new Event('cartUpdated'));
+        
         setMsg(`${product.name} ajouté au panier`);
       } else {
         const localCartData = localStorage.getItem('localCart');

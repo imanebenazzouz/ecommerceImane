@@ -144,15 +144,6 @@ Accueil
 Catalogue
               </Link>
             </li>
-            <li>
-              <Link
-                to="/cart"
-                className="burger-menu__link"
-                onClick={closeMenu}
-              >
-Panier
-              </Link>
-            </li>
           </ul>
 
           {/* ===== NAVIGATION UTILISATEUR CONNECTÉ ===== */}

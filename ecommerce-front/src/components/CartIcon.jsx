@@ -78,7 +78,7 @@ export default function CartIcon({ onOpen }) {
         const localCount = getLocalCartCount();
         setCartCount(localCount);
       } else {
-        // Panier serveur : recharger
+        // Panier serveur : recharger immédiatement
         loadCartCount();
       }
     };
@@ -95,15 +95,18 @@ export default function CartIcon({ onOpen }) {
     };
     window.addEventListener('storage', handleStorageChange);
 
-    // Vérifier périodiquement les changements du panier local
+    // Vérifier périodiquement les changements du panier (toutes les 2 secondes pour les utilisateurs connectés)
     const checkInterval = setInterval(() => {
       if (!isAuthenticated()) {
         const localCount = getLocalCartCount();
         if (localCount !== cartCount) {
           setCartCount(localCount);
         }
+      } else {
+        // Pour les utilisateurs connectés, vérifier périodiquement le panier serveur
+        loadCartCount();
       }
-    }, 1000); // Vérifier toutes les secondes
+    }, 2000); // Vérifier toutes les 2 secondes
 
     return () => {
       window.removeEventListener('cartUpdated', handleCartUpdate);
