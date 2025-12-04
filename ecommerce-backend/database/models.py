@@ -113,6 +113,9 @@ class Product(Base):
     # Produit actif ? True = visible sur le site, False = caché (archivé)
     active = Column(Boolean, default=True)
     
+    # URL de l'image du produit (peut être vide)
+    image_url = Column(String(500), nullable=True)
+    
     # Date d'ajout du produit au catalogue
     created_at = Column(DateTime, default=utcnow)
     

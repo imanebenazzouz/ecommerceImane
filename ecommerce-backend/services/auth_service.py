@@ -20,7 +20,7 @@ Rôles:
 
 SÉCURITÉ:
 - Les mots de passe ne sont JAMAIS stockés en clair (uniquement des hash)
-- Les tokens JWT expirent après 30 minutes
+- Les tokens JWT expirent après 2 heures
 - Les tokens de reset expirent après 1 heure
 - En production, la secret_key doit être dans une variable d'environnement !
 """
@@ -72,8 +72,8 @@ class AuthService:
         # Algorithme de signature des tokens
         self.algorithm = "HS256"  # HS256 = HMAC avec SHA-256
         
-        # Durée de validité des tokens (30 minutes)
-        self.access_token_expire_minutes = 30
+        # Durée de validité des tokens (2 heures)
+        self.access_token_expire_minutes = 120
         
         # Simple session manager (pour compatibilité avec d'anciens tests)
         class SessionManager:
@@ -93,17 +93,7 @@ class AuthService:
     def hash_password(self, password: str) -> str:
         """
         Hashe un mot de passe de manière SÉCURISÉE avec bcrypt.
-        
-        ⚠️ SÉCURITÉ CRITIQUE ⚠️
-        On ne stocke JAMAIS les mots de passe en clair dans la base de données !
-        On stocke uniquement un "hash" (empreinte cryptographique).
-        
-        Fonctionnement :
-        1. Génère un "salt" aléatoire (grain de sel cryptographique)
-        2. Combine le mot de passe + salt
-        3. Applique l'algorithme bcrypt
-        4. Retourne le hash final
-        
+    
         Exemple :
         - Mot de passe : "monmotdepasse123"
         - Hash bcrypt : "$2b$12$xY8Z4aB...60caractères..."
@@ -174,11 +164,11 @@ class AuthService:
         
         Le token contient :
         - Les données fournies (ex: ID utilisateur)
-        - Une date d'expiration (30 minutes après création)
+        - Une date d'expiration (2 heures après création)
         - Une signature cryptographique (pour éviter la falsification)
         """
         to_encode = data.copy()
-        # Ajouter l'expiration : maintenant + 30 minutes
+        # Ajouter l'expiration : maintenant + 2 heures
         from datetime import UTC
         expire = datetime.now(UTC) + timedelta(minutes=self.access_token_expire_minutes)
         to_encode.update({"exp": expire})

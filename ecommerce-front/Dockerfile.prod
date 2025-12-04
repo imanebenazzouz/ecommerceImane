@@ -1,10 +1,10 @@
 # Dockerfile optimisé pour la production - Frontend React
-FROM node:20-alpine as builder
+FROM node:20-slim as builder
 
-# Variables d'environnement
-ENV NODE_ENV=production
-# Forcer Rollup à ignorer le binaire natif (problèmes d'optional deps sous Alpine)
-ENV ROLLUP_SKIP_NODEJS_NATIVE=true
+# Forcer Rollup à ignorer le binaire natif (problèmes d'optional deps)
+ENV ROLLUP_SKIP_NODE_NATIVE=1 \
+    ROLLUP_USE_NODE_JS_IMPLEMENTATION=true \
+    npm_config_optional=false
 
 # Créer le répertoire de travail
 WORKDIR /app
@@ -13,7 +13,10 @@ WORKDIR /app
 COPY package*.json ./
 
 # Installer les dépendances (inclure devDependencies pour le build)
-RUN npm ci && npm cache clean --force
+RUN npm ci --no-optional && npm cache clean --force
+# Workaround Rollup native on arm64
+RUN npm i -D @rollup/rollup-linux-arm64-gnu || true
+RUN npm i -D @rollup/rollup-linux-arm64-musl || true
 
 # Copier le code source
 COPY . .

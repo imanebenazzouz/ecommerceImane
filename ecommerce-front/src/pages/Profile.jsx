@@ -1,22 +1,37 @@
 // src/pages/Profile.jsx
 //
 // Page profil: affichage/modification du prénom, nom et adresse avec validations.
+// Utilise des champs séparés pour l'adresse : numéro, code postal, nom de rue
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
-import { validateAddress, validateName } from "../utils/validations";
+import { 
+  validateName, 
+  validatePostalCode, 
+  validateStreetNumber, 
+  validateStreetName,
+  buildFullAddress,
+  parseAddress
+} from "../utils/validations";
 
 export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [errors, setErrors] = useState({});
+
+  // Changement de mot de passe
+  const [pwd, setPwd] = useState({ current_password: "", new_password: "", confirm_password: "" });
+  const [pwdSaving, setPwdSaving] = useState(false);
 
   const [user, setUser] = useState(null);
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
-    address: "",
+    street_number: "",
+    street_name: "",
+    postal_code: "",
   });
 
   // Unauthorized UI (no token at all)
@@ -28,14 +43,21 @@ export default function Profile() {
       setLoading(true);
       setError("");
       setSuccess("");
+      setErrors({});
       try {
         const me = await api.me();
         if (ignore) return;
         setUser(me);
+        
+        // Parser l'adresse existante pour remplir les champs séparés
+        const parsedAddress = parseAddress(me.address || "");
+        
         setForm({
           first_name: me.first_name || "",
           last_name: me.last_name || "",
-          address: me.address || "",
+          street_number: parsedAddress.streetNumber,
+          street_name: parsedAddress.streetName,
+          postal_code: parsedAddress.postalCode,
         });
       } catch (err) {
         if (ignore) return;
@@ -54,12 +76,32 @@ export default function Profile() {
 
   function onChange(e) {
     const { name, value } = e.target;
-    setForm((f) => ({ ...f, [name]: value }));
+    
+    // Filtrer les caractères selon le type de champ
+    let filteredValue = value;
+    
+    if (name === 'street_number' || name === 'postal_code') {
+      // Seulement des chiffres pour numéro et code postal
+      filteredValue = value.replace(/\D/g, '');
+    } else if (name === 'first_name' || name === 'last_name') {
+      // Seulement lettres, espaces, tirets, apostrophes pour nom/prénom
+      // Pas de chiffres ni symboles
+      filteredValue = value.replace(/[^a-zA-ZÀ-ÿ\s'-]/g, '');
+    }
+    
+    setForm((f) => ({ ...f, [name]: filteredValue }));
+    // Effacer l'erreur du champ modifié
+    if (errors[name]) {
+      setErrors({ ...errors, [name]: null });
+    }
+    if (error) setError("");
   }
 
   async function onSubmit(e) {
     e.preventDefault();
     if (!hasToken) return; // guard
+    
+    setErrors({});
     
     // Validation côté client
     if (!form.first_name?.trim()) {
@@ -70,10 +112,15 @@ export default function Profile() {
       setError("Le nom est requis");
       return;
     }
+    if (!form.street_number?.trim() || !form.street_name?.trim() || !form.postal_code?.trim()) {
+      setError("Tous les champs d'adresse sont requis");
+      return;
+    }
     
     // Valider le prénom (pas de chiffres)
     const firstNameValidation = validateName(form.first_name, "Prénom");
     if (!firstNameValidation.valid) {
+      setErrors({ first_name: firstNameValidation.error });
       setError(firstNameValidation.error);
       return;
     }
@@ -81,16 +128,37 @@ export default function Profile() {
     // Valider le nom (pas de chiffres)
     const lastNameValidation = validateName(form.last_name, "Nom");
     if (!lastNameValidation.valid) {
+      setErrors({ last_name: lastNameValidation.error });
       setError(lastNameValidation.error);
       return;
     }
     
-    // Valider l'adresse
-    const addressValidation = validateAddress(form.address);
-    if (!addressValidation.valid) {
-      setError(addressValidation.error);
+    // Valider le numéro de rue
+    const streetNumberValidation = validateStreetNumber(form.street_number);
+    if (!streetNumberValidation.valid) {
+      setErrors({ street_number: streetNumberValidation.error });
+      setError(streetNumberValidation.error);
       return;
     }
+    
+    // Valider le nom de rue
+    const streetNameValidation = validateStreetName(form.street_name);
+    if (!streetNameValidation.valid) {
+      setErrors({ street_name: streetNameValidation.error });
+      setError(streetNameValidation.error);
+      return;
+    }
+    
+    // Valider le code postal
+    const postalCodeValidation = validatePostalCode(form.postal_code);
+    if (!postalCodeValidation.valid) {
+      setErrors({ postal_code: postalCodeValidation.error });
+      setError(postalCodeValidation.error);
+      return;
+    }
+    
+    // Reconstruire l'adresse complète pour le backend
+    const fullAddress = buildFullAddress(form.street_number, form.street_name, form.postal_code);
     
     setSaving(true);
     setError("");
@@ -99,15 +167,22 @@ export default function Profile() {
       const updated = await api.updateProfile({
         first_name: form.first_name,
         last_name: form.last_name,
-        address: form.address,
+        address: fullAddress,
       });
       setUser(updated);
+      
+      // Parser l'adresse mise à jour
+      const parsedAddress = parseAddress(updated.address || "");
+      
       setForm({
         first_name: updated.first_name || "",
         last_name: updated.last_name || "",
-        address: updated.address || "",
+        street_number: parsedAddress.streetNumber,
+        street_name: parsedAddress.streetName,
+        postal_code: parsedAddress.postalCode,
       });
       setSuccess("Profil mis à jour");
+      setErrors({});
     } catch (err) {
       let msg = "Échec de la mise à jour";
       if (err?.message) msg = err.message;
@@ -188,45 +263,114 @@ export default function Profile() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <label>
-                  Prénom
+                  Prénom <span style={{ color: "#dc2626" }}>*</span>
                   <input
                     name="first_name"
                     value={form.first_name}
                     onChange={onChange}
-                    style={inputStyle}
+                    onKeyPress={(e) => {
+                      // Bloquer les chiffres et symboles (sauf espaces, tirets, apostrophes)
+                      if (/[0-9@#$%^&*()_+=\[\]{}|;:"<>?\\\/]/.test(e.key)) {
+                        e.preventDefault();
+                      }
+                    }}
+                    style={errors.first_name ? { ...inputStyle, border: "1px solid #dc2626", backgroundColor: "#fef2f2" } : inputStyle}
                     placeholder="Votre prénom"
                     autoComplete="given-name"
                   />
+                  {errors.first_name && <small style={{ color: "#dc2626", fontSize: 12 }}>{errors.first_name}</small>}
                 </label>
                 <label>
-                  Nom
+                  Nom <span style={{ color: "#dc2626" }}>*</span>
                   <input
                     name="last_name"
                     value={form.last_name}
                     onChange={onChange}
-                    style={inputStyle}
+                    onKeyPress={(e) => {
+                      // Bloquer les chiffres et symboles (sauf espaces, tirets, apostrophes)
+                      if (/[0-9@#$%^&*()_+=\[\]{}|;:"<>?\\\/]/.test(e.key)) {
+                        e.preventDefault();
+                      }
+                    }}
+                    style={errors.last_name ? { ...inputStyle, border: "1px solid #dc2626", backgroundColor: "#fef2f2" } : inputStyle}
                     placeholder="Votre nom"
                     autoComplete="family-name"
                   />
+                  {errors.last_name && <small style={{ color: "#dc2626", fontSize: 12 }}>{errors.last_name}</small>}
                 </label>
               </div>
 
-              <label>
-                Adresse
-                <textarea
-                  name="address"
-                  value={form.address}
-                  onChange={onChange}
-                  rows={3}
-                  style={{ ...inputStyle, resize: "vertical" }}
-                  placeholder="Ex: 12 Rue des Fleurs, 75001 Paris"
-                  autoComplete="street-address"
-                  aria-describedby="address-help"
-                />
+              <div>
+                <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>
+                  Adresse <span style={{ color: "#dc2626" }}>*</span>
+                </label>
+                
+                <div style={{ display: "grid", gridTemplateColumns: "100px 1fr 120px", gap: 8, marginBottom: 8 }}>
+                  <label style={{ display: "block" }}>
+                    Numéro
+                    <input
+                      name="street_number"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={form.street_number}
+                      onChange={onChange}
+                      onKeyPress={(e) => {
+                        // Bloquer tout sauf les chiffres
+                        if (!/[0-9]/.test(e.key)) {
+                          e.preventDefault();
+                        }
+                      }}
+                      style={errors.street_number ? { ...inputStyle, border: "1px solid #dc2626", backgroundColor: "#fef2f2" } : inputStyle}
+                      placeholder="12"
+                      autoComplete="off"
+                      maxLength={10}
+                    />
+                  </label>
+                  <label style={{ display: "block" }}>
+                    Nom de rue / Avenue
+                    <input
+                      name="street_name"
+                      type="text"
+                      value={form.street_name}
+                      onChange={onChange}
+                      style={errors.street_name ? { ...inputStyle, border: "1px solid #dc2626", backgroundColor: "#fef2f2" } : inputStyle}
+                      placeholder="Rue de la Paix"
+                      autoComplete="street-address"
+                      maxLength={100}
+                    />
+                  </label>
+                  <label style={{ display: "block" }}>
+                    Code postal
+                    <input
+                      name="postal_code"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={form.postal_code}
+                      onChange={onChange}
+                      onKeyPress={(e) => {
+                        // Bloquer tout sauf les chiffres
+                        if (!/[0-9]/.test(e.key)) {
+                          e.preventDefault();
+                        }
+                      }}
+                      style={errors.postal_code ? { ...inputStyle, border: "1px solid #dc2626", backgroundColor: "#fef2f2" } : inputStyle}
+                      placeholder="75001"
+                      autoComplete="postal-code"
+                      maxLength={5}
+                    />
+                  </label>
+                </div>
+                
+                {errors.street_number && <small style={{ color: "#dc2626", fontSize: 12, display: "block", marginTop: -4, marginBottom: 4 }}>{errors.street_number}</small>}
+                {errors.street_name && <small style={{ color: "#dc2626", fontSize: 12, display: "block", marginTop: -4, marginBottom: 4 }}>{errors.street_name}</small>}
+                {errors.postal_code && <small style={{ color: "#dc2626", fontSize: 12, display: "block", marginTop: -4, marginBottom: 4 }}>{errors.postal_code}</small>}
+                
                 <small id="address-help" style={{ fontSize: 12, color: "#6b7280", display: "block", marginTop: 4 }}>
-                  Format attendu : numéro de rue, nom de rue, code postal, ville
+                  💡 Exemple : 12 | Rue de la Paix | 75001
                 </small>
-              </label>
+              </div>
 
               <div>
                 <span style={{ fontSize: 14, color: "#555" }}>
@@ -280,6 +424,85 @@ export default function Profile() {
             </div>
           </fieldset>
         </form>
+      )}
+
+      {/* Bloc changement de mot de passe */}
+      {!loading && user && (
+        <div style={{ maxWidth: 520, marginTop: 24 }}>
+          <h3 id="change-password" style={{ marginBottom: 12 }}>Changer mon mot de passe</h3>
+          <div style={{ display: "grid", gap: 12 }}>
+            <label>
+              Ancien mot de passe
+              <input
+                type="password"
+                value={pwd.current_password}
+                onChange={(e) => setPwd({ ...pwd, current_password: e.target.value })}
+                style={inputStyle}
+                placeholder="••••••••"
+                autoComplete="current-password"
+              />
+            </label>
+            <label>
+              Nouveau mot de passe
+              <input
+                type="password"
+                value={pwd.new_password}
+                onChange={(e) => setPwd({ ...pwd, new_password: e.target.value })}
+                style={inputStyle}
+                placeholder="Au moins 6 caractères"
+                autoComplete="new-password"
+              />
+            </label>
+            <label>
+              Confirmer le nouveau mot de passe
+              <input
+                type="password"
+                value={pwd.confirm_password}
+                onChange={(e) => setPwd({ ...pwd, confirm_password: e.target.value })}
+                style={inputStyle}
+                placeholder="••••••••"
+                autoComplete="new-password"
+              />
+            </label>
+
+            <div>
+              <button
+                type="button"
+                disabled={pwdSaving}
+                onClick={async () => {
+                  try {
+                    setError("");
+                    setSuccess("");
+                    if (!pwd.current_password || !pwd.new_password) {
+                      setError("Tous les champs mot de passe sont requis");
+                      return;
+                    }
+                    if (pwd.new_password.length < 6) {
+                      setError("Le nouveau mot de passe doit contenir au moins 6 caractères");
+                      return;
+                    }
+                    if (pwd.new_password !== pwd.confirm_password) {
+                      setError("La confirmation ne correspond pas");
+                      return;
+                    }
+                    setPwdSaving(true);
+                    await api.changePassword({ current_password: pwd.current_password, new_password: pwd.new_password });
+                    setSuccess("Mot de passe mis à jour");
+                    setPwd({ current_password: "", new_password: "", confirm_password: "" });
+                  } catch (e) {
+                    const msg = e?.message || "Échec du changement de mot de passe";
+                    setError(msg);
+                  } finally {
+                    setPwdSaving(false);
+                  }
+                }}
+                style={buttonPrimary}
+              >
+                {pwdSaving ? "Modification…" : "Mettre à jour le mot de passe"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

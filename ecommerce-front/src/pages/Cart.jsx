@@ -169,6 +169,8 @@ export default function Cart() {
    */
   function saveLocalCart(cartData) {
     localStorage.setItem('localCart', JSON.stringify(cartData));
+    // Déclencher un événement pour mettre à jour l'icône du panier
+    window.dispatchEvent(new Event('cartUpdated'));
   }
 
   // ===== MAPS OPTIMISÉES (USEMEMO) =====

@@ -34,7 +34,7 @@ Plateforme e-commerce complète avec gestion de catalogue, panier, commandes, pa
 - ✅ **Sécurité renforcée** : Authentification JWT, validation stricte des données
 - ✅ **Paiement sécurisé** : Validation Luhn pour les cartes bancaires
 - ✅ **Tests complets** : 44 tests couvrant tous les endpoints
-- ✅ **Production ready** : Docker, Nginx, monitoring Prometheus/Grafana
+- ✅ **Production ready** : Docker, Nginx
 - ✅ **Documentation complète** : API docs, guides de développement
 
 ---
@@ -82,8 +82,6 @@ Plateforme e-commerce complète avec gestion de catalogue, panier, commandes, pa
 ### Infrastructure
 - **Docker & Docker Compose** - Containerisation
 - **Nginx** - Reverse proxy
-- **Prometheus** - Monitoring
-- **Grafana** - Dashboards
 
 ---
 
@@ -206,9 +204,11 @@ Coverage: Tous les endpoints de l'API
 
 | Document | Description |
 |----------|-------------|
+| **[GUIDE_PRISE_EN_MAIN.md](GUIDE_PRISE_EN_MAIN.md)** | **🆕 Guide complet pour nouveaux développeurs** |
+| [LIEN_FRONTEND_BACKEND.md](LIEN_FRONTEND_BACKEND.md) | Comment frontend et backend communiquent |
+| [PLAN_PRESENTATION.md](PLAN_PRESENTATION.md) | Plan de présentation du projet |
 | [DOCUMENTATION.md](DOCUMENTATION.md) | Documentation technique complète |
 | [PRESENTATION.md](PRESENTATION.md) | Présentation détaillée du projet |
-| **[LIEN_FRONTEND_BACKEND.md](LIEN_FRONTEND_BACKEND.md)** | **🆕 Comment frontend et backend communiquent** |
 | [docs/development/BACKEND.md](docs/development/BACKEND.md) | Guide de développement backend |
 | [docs/development/FRONTEND.md](docs/development/FRONTEND.md) | Guide de développement frontend |
 | [docs/development/DOCKER.md](docs/development/DOCKER.md) | Guide Docker et déploiement |
@@ -239,12 +239,8 @@ cp config.env.example config.env.production
 #### 3️⃣ Accéder
 - **Site** : http://localhost
 - **API** : http://localhost/api
-- **Prometheus** : http://localhost:9090
-- **Grafana** : http://localhost:3001
 
-### Monitoring
-- **Prometheus** : Collecte des métriques
-- **Grafana** : Dashboards de visualisation
+### Logs
 - **Logs** : Voir `logs/backend.log` et `logs/frontend.log`
 
 ---

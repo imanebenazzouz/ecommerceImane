@@ -102,95 +102,78 @@ export default function Login() {
   }
 
   return (
-    <div style={{ padding: 40 }}>
-      <h2>Connexion</h2>
+    <div className="auth-page">
+      <div className="auth-shell">
+        <div className="auth-grid">
+          <div className="auth-card auth-card--frosted">
+            <h2>Se connecter</h2>
 
-      <div
-        style={{
-          backgroundColor: "#f0f0f0",
-          padding: 16,
-          borderRadius: 8,
-          marginBottom: 20,
-          border: "1px solid #ddd",
-        }}
-      >
-        <h3 style={{ margin: "0 0 8px 0", fontSize: 14 }}>🧪 Comptes de test :</h3>
-        <p style={{ margin: "4px 0", fontSize: 12 }}>
-          <strong>Admin:</strong> admin@example.com / admin
-        </p>
-        <p style={{ margin: "4px 0", fontSize: 12 }}>
-          <strong>Client:</strong> client@example.com / secret
-        </p>
-      </div>
+            {error && <div className="message message-error">{error}</div>}
 
-      <form onSubmit={handleSubmit} noValidate style={{ maxWidth: 360 }}>
-        <label style={{ display: "block", marginBottom: 8 }}>
-          Email
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="ex: imane@example.com"
-            style={{
-              display: "block",
-              width: "100%",
-              padding: 8,
-              marginTop: 4,
-              borderRadius: 4,
-              border: "1px solid #ccc",
-            }}
-          />
-        </label>
+            <form onSubmit={handleSubmit} noValidate className="auth-form">
+              <div className="form-group">
+                <label className="form-label" htmlFor="email">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="ex: imane@example.com"
+                  className="form-input"
+                />
+              </div>
 
-        <label style={{ display: "block", marginBottom: 8 }}>
-          Mot de passe
-          <input
-            type="password"
-            required
-            value={pwd}
-            onChange={(e) => setPwd(e.target.value)}
-            placeholder="••••••••"
-            style={{
-              display: "block",
-              width: "100%",
-              padding: 8,
-              marginTop: 4,
-              borderRadius: 4,
-              border: "1px solid #ccc",
-            }}
-          />
-        </label>
+              <div className="form-group">
+                <label className="form-label" htmlFor="password">
+                  Mot de passe
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  required
+                  value={pwd}
+                  onChange={(e) => setPwd(e.target.value)}
+                  placeholder="••••••••"
+                  className="form-input"
+                />
+              </div>
 
-        {error && (
-          <p style={{ color: "tomato", marginBottom: 8, fontWeight: "bold" }}>
-            {error}
-          </p>
-        )}
+              <div className="auth-actions">
+                <button type="submit" className="btn btn-rose btn-lg" disabled={pending}>
+                  {pending ? "Connexion…" : "Se connecter"}
+                </button>
+                <Link to="/register" className="btn btn-rose btn-lg auth-actions__secondary">
+                  S&apos;inscrire
+                </Link>
+              </div>
 
-        <button
-          type="submit"
-          disabled={pending}
-          style={{
-            padding: "10px 16px",
-            backgroundColor: "#2563eb",
-            color: "white",
-            border: "none",
-            borderRadius: 4,
-            cursor: "pointer",
-            fontWeight: "bold",
-            marginBottom: 12,
-          }}
-        >
-          {pending ? "Connexion…" : "Se connecter"}
-        </button>
+              <div className="auth-links">
+                <Link to="/reset-password-simple" className="auth-link">
+                  Modifier le mot de passe
+                </Link>
+              </div>
+            </form>
+          </div>
 
-        <div style={{ marginTop: 12 }}>
-          <Link to="/forgot-password" style={{ color: "#2563eb", textDecoration: "none", fontSize: 14 }}>
-            Mot de passe oublié ?
-          </Link>
+          <div className="auth-note">
+            <div className="auth-note__title">🧪 Comptes de test</div>
+            <ul className="auth-note__list">
+              <li className="auth-note__item">
+                <strong>Admin</strong> — admin@example.com / admin
+              </li>
+              <li className="auth-note__item">
+                <strong>Client</strong> — client@example.com / secret
+              </li>
+              <li className="auth-note__item">
+                <strong>Astuce</strong> — la synchro du panier se fait dès la connexion.
+              </li>
+            </ul>
+          </div>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

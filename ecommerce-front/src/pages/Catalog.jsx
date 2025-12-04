@@ -20,6 +20,7 @@
 import React, { useEffect, useState } from "react"; // React : bibliothèque pour créer l'interface
                                                      // useEffect : pour exécuter du code au chargement
                                                      // useState : pour gérer l'état des données
+import { Link } from "react-router-dom";            // Link : composant pour la navigation
 import { api } from "../lib/api";                    // api : client HTTP pour appeler le backend
 import { useAuth } from "../hooks/useAuth";          // useAuth : hook personnalisé pour vérifier si l'utilisateur est connecté
 import "../styles/catalog.css";                      // Styles CSS spécifiques à cette page
@@ -164,6 +165,9 @@ export default function Catalog() {
         // JSON.stringify() convertit l'objet JavaScript en chaîne JSON pour le stockage
         localStorage.setItem('localCart', JSON.stringify(localCart));
         
+        // Déclencher un événement pour mettre à jour l'icône du panier
+        window.dispatchEvent(new Event('cartUpdated'));
+        
         // Afficher un message de succès avec indication "(local)"
         setMsg(`${p.name} ajouté au panier (local)`);
       }
@@ -193,6 +197,18 @@ export default function Catalog() {
     currency: "EUR",
   });
 
+  // ===== HELPER POUR CONSTRUIRE L'URL DE L'IMAGE =====
+  const getImageUrl = (imageUrl) => {
+    if (!imageUrl) return null;
+    // Si l'URL commence déjà par http, la retourner telle quelle
+    if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+      return imageUrl;
+    }
+    // Sinon, construire l'URL complète avec l'API base
+    const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+    return `${apiBase}${imageUrl}`;
+  };
+
   // ===== RENDU JSX (INTERFACE VISUELLE) =====
   // JSX = mélange de HTML et JavaScript pour créer l'interface React
   // Tout ce qui est dans return() sera affiché à l'écran
@@ -200,18 +216,6 @@ export default function Catalog() {
     // Conteneur principal avec la classe CSS "cat" (catalogue)
     <div className="cat">
       
-      {/* ===== SECTION HERO (BANDEAU D'ACCUEIL) ===== */}
-      {/* Bannière d'accueil en haut de la page */}
-      <section className="hero">
-        {/* Titre principal de la boutique */}
-        <h1 className="hero__title">Bienvenue sur notre boutique</h1>
-        
-        {/* Sous-titre avec emoji */}
-        <p className="hero__subtitle">
-          Découvrez nos meilleurs produits au meilleur prix 💎
-        </p>
-      </section>
-
       {/* ===== EN-TÊTE DU CATALOGUE ===== */}
       {/* Affiche le titre "Catalogue" et le nombre de produits disponibles */}
       <div className="cat__header">
@@ -245,16 +249,35 @@ export default function Catalog() {
           // Cela aide React à optimiser les mises à jour (ne re-render que ce qui change)
           <article key={p.id} className="pcard">
             
-            {/* ===== IMAGE DU PRODUIT ===== */}
-            {/* Pour l'instant, on utilise un placeholder à la place d'une vraie image */}
-            {/* TODO : Remplacer par <img src={p.image_url} alt={p.name} /> */}
-            <div className="pcard__media">Image</div>
+            {/* ===== LIEN VERS LA PAGE DE DÉTAIL ===== */}
+            <Link to={`/products/${p.id}`} className="pcard__link">
+              {/* ===== IMAGE DU PRODUIT ===== */}
+              <div className="pcard__media">
+                {p.image_url ? (
+                  <img 
+                    src={getImageUrl(p.image_url)}
+                    alt={p.name}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover"
+                    }}
+                    onError={(e) => {
+                      // Si l'image ne charge pas, afficher le placeholder
+                      e.target.style.display = "none";
+                      e.target.parentElement.innerHTML = "<span style='display:flex;align-items:center;justify-content:center;width:100%;height:100%'>Image</span>";
+                    }}
+                  />
+                ) : (
+                  <span>Image</span>
+                )}
+              </div>
 
-            {/* ===== CORPS DE LA CARTE (INFOS PRODUIT) ===== */}
-            <div className="pcard__body">
-              
-              {/* Nom du produit (titre h3) */}
-              <h3 className="pcard__title">{p.name}</h3>
+              {/* ===== CORPS DE LA CARTE (INFOS PRODUIT) ===== */}
+              <div className="pcard__body">
+                
+                {/* Nom du produit (titre h3) */}
+                <h3 className="pcard__title">{p.name}</h3>
 
               {/* ===== MÉTADONNÉES (PRIX + STOCK) ===== */}
               <div className="pcard__meta">
@@ -285,9 +308,9 @@ export default function Catalog() {
                     <>Stock\u00a0:{" "}{(() => { 
                       // Récupérer la quantité en stock (compatibilité avec différents formats)
                       const s = p.stock_qty || p.stock || 0; 
-                      // Si stock < 5 : afficher "Faible" (alerte visuelle)
+                      // Si stock < 5 : afficher "Faible" avec la quantité (alerte visuelle)
                       // Sinon : afficher le nombre exact d'unités disponibles
-                      return s < 5 ? "Faible" : s; 
+                      return s < 5 ? `Faible (${s})` : s; 
                     })()}</>
                   ) : (
                     // ===== PRODUIT INACTIF : AFFICHER "INDISPONIBLE" =====
@@ -296,6 +319,7 @@ export default function Catalog() {
                 </span>
               </div>
             </div>
+            </Link>
 
             {/* ===== PIED DE LA CARTE (BOUTON D'ACTION) ===== */}
             <div className="pcard__foot">
@@ -303,7 +327,11 @@ export default function Catalog() {
               <button
                 // Événement onClick : appeler la fonction add() avec le produit (p) en paramètre
                 // () => add(p) : fonction fléchée pour passer le paramètre
-                onClick={() => add(p)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  add(p);
+                }}
                 
                 // disabled : désactiver le bouton si le produit n'est pas actif
                 // Un bouton désactivé ne peut pas être cliqué et est grisé par CSS

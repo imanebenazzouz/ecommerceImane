@@ -22,19 +22,22 @@ export default function Admin() {
   // État pour les commandes clients
   const [orders, setOrders] = useState([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState("");
-  const [selectedOrderId, setSelectedOrderId] = useState("");
-  const [searchMode, setSearchMode] = useState("all"); // "all", "user", "order"
   const [showOrders, setShowOrders] = useState(false);
 
   // Formulaire de création
   const [form, setForm] = useState({
     name: "",
     description: "",
-    price_eur: "", // on saisit en euros côté UI, on convertit en cents pour l’API
+    price_eur: "", // on saisit en euros côté UI, on convertit en cents pour l'API
     stock_qty: "",
     active: true,
+    image_url: "",
   });
+  
+  // État pour l'upload d'image
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [selectedImageFile, setSelectedImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
 
   const fmt = useMemo(() => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }), []);
 
@@ -82,37 +85,60 @@ export default function Admin() {
     }
   }
 
-  // Fonction pour afficher les commandes d'un client spécifique
-  async function handleViewClientOrders() {
-    if (!selectedUserId.trim()) {
-      setErr("Veuillez saisir un ID utilisateur.");
-      return;
-    }
-    setShowOrders(true);
-    setSearchMode("user");
-    setSelectedOrderId("");
-    await loadOrders({ user_id: selectedUserId });
-  }
-
-  // Fonction pour rechercher une commande par ID
-  async function handleSearchOrderById() {
-    if (!selectedOrderId.trim()) {
-      setErr("Veuillez saisir un ID de commande.");
-      return;
-    }
-    setShowOrders(true);
-    setSearchMode("order");
-    setSelectedUserId("");
-    await loadOrders({ order_id: selectedOrderId });
-  }
-
   // Fonction pour afficher toutes les commandes
   async function handleViewAllOrders() {
     setShowOrders(true);
-    setSearchMode("all");
-    setSelectedUserId("");
-    setSelectedOrderId("");
     await loadOrders();
+  }
+
+  // Fonction pour uploader une image
+  async function handleImageUpload(file) {
+    if (!file) return;
+    
+    setUploadingImage(true);
+    setErr("");
+    try {
+      const result = await api.adminUploadImage(file);
+      // Construire l'URL complète avec le base URL de l'API
+      const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:8000";
+      const fullImageUrl = result.image_url.startsWith("http") 
+        ? result.image_url 
+        : `${apiBase}${result.image_url}`;
+      
+      setForm(f => ({ ...f, image_url: fullImageUrl }));
+      setImagePreview(fullImageUrl);
+      setMsg("Image uploadée avec succès");
+    } catch (e) {
+      console.error("Erreur upload image:", e);
+      setErr(e.message || "Erreur lors de l'upload de l'image.");
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
+  // Fonction pour gérer la sélection d'un fichier
+  function handleFileSelect(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Vérifier le type de fichier
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      setErr("Format de fichier non autorisé. Formats acceptés: JPG, PNG, GIF, WEBP");
+      return;
+    }
+    
+    setSelectedImageFile(file);
+    
+    // Créer un aperçu local
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result);
+    };
+    reader.readAsDataURL(file);
+    
+    // Uploader automatiquement
+    handleImageUpload(file);
   }
 
   async function handleCreate(e) {
@@ -139,11 +165,14 @@ export default function Admin() {
         price_cents: eurToCents(form.price_eur),
         stock_qty: Number(form.stock_qty || 0),
         active: !!form.active,
+        image_url: form.image_url || null,
       };
       
       const created = await api.adminCreateProduct(body);
       setMsg(`Produit créé : ${created.name}`);
-      setForm({ name: "", description: "", price_eur: "", stock_qty: "", active: true });
+      setForm({ name: "", description: "", price_eur: "", stock_qty: "", active: true, image_url: "" });
+      setSelectedImageFile(null);
+      setImagePreview(null);
       await load();
     } catch (e) {
       console.error("Erreur création produit:", e);
@@ -291,9 +320,61 @@ export default function Admin() {
             />
           </label>
 
+          <label style={{ display: "block", gridColumn: "1 / -1" }}>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Image du produit</div>
+            <input
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+              onChange={handleFileSelect}
+              disabled={uploadingImage}
+              style={fieldStyle}
+            />
+            {uploadingImage && (
+              <div style={{ marginTop: 8, color: "#64748b", fontSize: 14 }}>
+                Upload en cours...
+              </div>
+            )}
+            {imagePreview && (
+              <div style={{ marginTop: 12 }}>
+                <img 
+                  src={imagePreview} 
+                  alt="Aperçu" 
+                  style={{ 
+                    maxWidth: "200px", 
+                    maxHeight: "200px", 
+                    borderRadius: 8,
+                    border: "1px solid #e5e7eb"
+                  }} 
+                />
+              </div>
+            )}
+            {form.image_url && !imagePreview && (
+              <div style={{ marginTop: 12 }}>
+                <img 
+                  src={form.image_url} 
+                  alt="Image actuelle" 
+                  style={{ 
+                    maxWidth: "200px", 
+                    maxHeight: "200px", 
+                    borderRadius: 8,
+                    border: "1px solid #e5e7eb"
+                  }} 
+                />
+              </div>
+            )}
+          </label>
+
           <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <button type="submit" style={primaryBtn}>Créer</button>
-            <button type="button" style={secondaryBtn} onClick={() => setForm({ name:"", description:"", price_eur:"", stock_qty:"", active:true })}>
+            <button type="submit" style={primaryBtn} disabled={uploadingImage}>Créer</button>
+            <button 
+              type="button" 
+              style={secondaryBtn} 
+              onClick={() => {
+                setForm({ name:"", description:"", price_eur:"", stock_qty:"", active:true, image_url:"" });
+                setSelectedImageFile(null);
+                setImagePreview(null);
+              }}
+            >
               Réinitialiser
             </button>
           </div>
@@ -398,50 +479,9 @@ export default function Admin() {
         border: "1px solid #e5e7eb", borderRadius: 12, padding: 16, marginTop: 20,
         background: "#fff", boxShadow: "0 1px 2px rgba(0,0,0,.04)"
       }}>
-        <h3 style={{ marginTop: 0, marginBottom: 16 }}>Recherche de Commandes</h3>
+        <h3 style={{ marginTop: 0, marginBottom: 16 }}>Commandes</h3>
         
         <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
-          {/* Recherche par ID de commande */}
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <input
-              type="text"
-              placeholder="ID de commande (UUID)"
-              value={selectedOrderId}
-              onChange={(e) => setSelectedOrderId(e.target.value)}
-              style={{ ...fieldStyle, width: 250, padding: "8px 12px" }}
-            />
-            <button 
-              onClick={handleSearchOrderById}
-              style={primaryBtn}
-              disabled={ordersLoading}
-            >
-              Rechercher commande
-            </button>
-          </div>
-          
-          <div style={{ width: "100%", height: "1px", background: "#e5e7eb", margin: "8px 0" }}></div>
-          
-          {/* Recherche par ID utilisateur */}
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <input
-              type="text"
-              placeholder="ID utilisateur (UUID)"
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              style={{ ...fieldStyle, width: 250, padding: "8px 12px" }}
-            />
-            <button 
-              onClick={handleViewClientOrders}
-              style={secondaryBtn}
-              disabled={ordersLoading}
-            >
-              Voir commandes client
-            </button>
-          </div>
-          
-          <div style={{ width: "100%", height: "1px", background: "#e5e7eb", margin: "8px 0" }}></div>
-          
-          {/* Voir toutes les commandes */}
           <button 
             onClick={handleViewAllOrders}
             style={secondaryBtn}
@@ -455,9 +495,7 @@ export default function Admin() {
           <div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <h4 style={{ margin: 0 }}>
-                {searchMode === "order" ? `Commande ${selectedOrderId ? selectedOrderId.slice(-8) : ''}` :
-                 searchMode === "user" ? `Commandes du client ${selectedUserId ? selectedUserId.slice(0, 8) + '...' : ''}` :
-                 "Toutes les commandes"} ({orders.length})
+                Toutes les commandes ({orders.length})
               </h4>
               <button onClick={() => setShowOrders(false)} style={secondaryBtn}>
                 Masquer
@@ -531,14 +569,7 @@ export default function Admin() {
                             try {
                               await api.adminValidateOrder(order.id);
                               setMsg(`Commande ${order.id.slice(-8)} validée`);
-                              // Recharger selon le mode de recherche actuel
-                              if (searchMode === "order") {
-                                await loadOrders({ order_id: selectedOrderId });
-                              } else if (searchMode === "user") {
-                                await loadOrders({ user_id: selectedUserId });
-                              } else {
-                                await loadOrders();
-                              }
+                              await loadOrders();
                             } catch (e) {
                               setErr(e.message);
                             }
@@ -555,14 +586,7 @@ export default function Admin() {
                               setErr(""); // Effacer les erreurs précédentes
                               await api.adminShipOrder(order.id);
                               setMsg(`Commande ${order.id.slice(-8)} expédiée`);
-                              // Recharger selon le mode de recherche actuel
-                              if (searchMode === "order") {
-                                await loadOrders({ order_id: selectedOrderId });
-                              } else if (searchMode === "user") {
-                                await loadOrders({ user_id: selectedUserId });
-                              } else {
-                                await loadOrders();
-                              }
+                              await loadOrders();
                             } catch (e) {
                               console.error("Erreur expédition:", e);
                               if (e.status === 422) {
@@ -585,14 +609,7 @@ export default function Admin() {
                             try {
                               await api.adminMarkDelivered(order.id);
                               setMsg(`Commande ${order.id.slice(-8)} marquée livrée`);
-                              // Recharger selon le mode de recherche actuel
-                              if (searchMode === "order") {
-                                await loadOrders({ order_id: selectedOrderId });
-                              } else if (searchMode === "user") {
-                                await loadOrders({ user_id: selectedUserId });
-                              } else {
-                                await loadOrders();
-                              }
+                              await loadOrders();
                             } catch (e) {
                               setErr(e.message);
                             }
@@ -609,14 +626,7 @@ export default function Admin() {
                               try {
                                 await api.adminCancelOrder(order.id);
                                 setMsg(`Commande ${order.id.slice(-8)} annulée`);
-                                // Recharger selon le mode de recherche actuel
-                                if (searchMode === "order") {
-                                  await loadOrders({ order_id: selectedOrderId });
-                                } else if (searchMode === "user") {
-                                  await loadOrders({ user_id: selectedUserId });
-                                } else {
-                                  await loadOrders();
-                                }
+                                await loadOrders();
                               } catch (e) {
                                 setErr(e.message);
                               }

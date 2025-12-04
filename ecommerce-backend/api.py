@@ -21,14 +21,17 @@ Sécurité:
 """
 
 # ========== IMPORTS - Bibliothèques externes ==========
-from fastapi import FastAPI, HTTPException, Depends, Header  # FastAPI = framework web Python moderne
+from fastapi import FastAPI, HTTPException, Depends, Header, UploadFile, File  # FastAPI = framework web Python moderne
 from fastapi.middleware.cors import CORSMiddleware  # CORS = permet au frontend (http://localhost:5173) d'appeler l'API
 from fastapi.responses import FileResponse, Response  # Pour renvoyer des fichiers (ex: PDF de facture)
+from fastapi.staticfiles import StaticFiles  # Pour servir des fichiers statiques
 from pydantic import BaseModel, EmailStr, Field, field_validator  # Pydantic = validation automatique des données
 from typing import Optional, List, Any, cast  # Typage Python pour meilleure sécurité
 import uuid  # Pour générer des ID uniques (ex: commande-12345)
 import io  # Pour manipuler des fichiers en mémoire
 import time  # Pour mesurer le temps d'exécution
+import shutil  # Pour copier des fichiers
+from pathlib import Path  # Pour manipuler les chemins de fichiers
 from datetime import datetime, UTC  # Pour gérer les dates (ex: date de commande)
 from reportlab.lib.pagesizes import letter, A4  # ReportLab = bibliothèque pour générer des PDF
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -121,6 +124,15 @@ app.add_middleware(
     ],
     expose_headers=["Content-Length", "Content-Type"],  # Headers exposés au frontend
 )
+
+# ========== CONFIGURATION FICHIERS STATIQUES ==========
+# Créer le dossier pour stocker les images uploadées
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+IMAGES_DIR = os.path.join(STATIC_DIR, "images")
+os.makedirs(IMAGES_DIR, exist_ok=True)
+
+# Servir les fichiers statiques (images) via FastAPI
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # ========== INITIALISATION BASE DE DONNÉES ==========
 # Créer toutes les tables PostgreSQL au démarrage de l'application
@@ -502,8 +514,18 @@ class ResetPasswordIn(BaseModel):
     token: str
     new_password: str = Field(min_length=6)
 
+# ---- Schéma simple pour changement de mot de passe (authentifié) ----
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=6)
+
 class VerifyTokenIn(BaseModel):
     token: str
+
+# ---- Schéma simple de reset par email (non authentifié) ----
+class SimpleResetPasswordIn(BaseModel):
+    email: EmailStr
+    new_password: str = Field(min_length=6)
 
 # ---- Schéma pour mise à jour du profil ----
 class UserUpdateIn(BaseModel):
@@ -581,6 +603,7 @@ class ProductOut(BaseModel):
     price_cents: int
     stock_qty: int
     active: bool
+    image_url: Optional[str] = None
 
 class CartItemOut(BaseModel):
     product_id: str
@@ -659,6 +682,7 @@ class ProductCreateIn(BaseModel):
     price_cents: int = Field(ge=0)
     stock_qty: int = Field(ge=0)
     active: bool = True
+    image_url: Optional[str] = None
 
 class ProductUpdateIn(BaseModel):
     name: Optional[str] = None
@@ -666,6 +690,7 @@ class ProductUpdateIn(BaseModel):
     price_cents: Optional[int] = Field(default=None, ge=0)
     stock_qty: Optional[int] = Field(default=None, ge=0)
     active: Optional[bool] = None
+    image_url: Optional[str] = None
 
 class RefundIn(BaseModel):
     amount_cents: Optional[int] = Field(default=None, ge=0)
@@ -728,6 +753,10 @@ class MessageCreateIn(BaseModel):
     def validate_content(cls, v):
         """Valide le contenu du message"""
         import re
+        
+        # Vérifier que le contenu est une chaîne non vide
+        if not isinstance(v, str):
+            raise ValueError("Le contenu du message doit être une chaîne de caractères")
         
         # Nettoyer les espaces multiples et trim
         cleaned = re.sub(r'\s+', ' ', v.strip()) if v else ""
@@ -924,95 +953,50 @@ def logout(uid: str = Depends(current_user_id)):
 # ========== Récupération de mot de passe ==========
 @app.post("/auth/forgot-password")
 def forgot_password(inp: ForgotPasswordIn, db: Session = Depends(get_db)):
-    """Demande de réinitialisation de mot de passe.
-    
-    Génère un token de réinitialisation et l'envoie par email via Brevo.
-    Pour la sécurité, retourne toujours un message de succès même si l'email n'existe pas.
-    
-    En mode développement (sans BREVO_API_KEY), le token est affiché dans les logs
-    et retourné dans la réponse pour faciliter les tests.
-    """
-    try:
-        user_repo = PostgreSQLUserRepository(db)
-        auth_service = AuthService(user_repo)
-        email_service = EmailService()
-        
-        token = auth_service.generate_reset_token(inp.email)
-        
-        if token:
-            # Envoyer l'email de réinitialisation
-            email_sent = email_service.send_password_reset_email(inp.email, token)
-            
-            # En mode développement (sans clé API Brevo), retourner le token dans la réponse
-            if email_service.dev_mode:
-                return {
-                    "message": "Si un compte existe avec cet email, vous recevrez un lien de réinitialisation.",
-                    "token": token,  # MODE DEV UNIQUEMENT
-                    "reset_url": f"{email_service.frontend_url}/reset-password?token={token}",  # MODE DEV UNIQUEMENT
-                    "dev_mode": True
-                }
-            else:
-                # En production, ne jamais retourner le token
-                return {
-                    "message": "Si un compte existe avec cet email, vous recevrez un lien de réinitialisation.",
-                    "email_sent": email_sent
-                }
-        else:
-            # Ne pas révéler si l'email existe ou non (sécurité)
-            return {
-                "message": "Si un compte existe avec cet email, vous recevrez un lien de réinitialisation."
-            }
-    except Exception as e:
-        # Logger l'erreur mais ne pas l'exposer à l'utilisateur
-        print(f"❌ Erreur lors de la génération du token: {str(e)}")
-        return {
-            "message": "Si un compte existe avec cet email, vous recevrez un lien de réinitialisation."
-        }
+    # Fonctionnalité désactivée: on gère désormais le changement de mot de passe directement depuis le profil
+    raise HTTPException(410, "La récupération de mot de passe par email est désactivée")
 
 @app.post("/auth/verify-reset-token")
 def verify_reset_token(inp: VerifyTokenIn, db: Session = Depends(get_db)):
-    """Vérifie la validité d'un token de réinitialisation."""
-    try:
-        user_repo = PostgreSQLUserRepository(db)
-        auth_service = AuthService(user_repo)
-        
-        user = auth_service.verify_reset_token(inp.token)
-        
-        if user:
-            return {
-                "valid": True,
-                "email": user.email
-            }
-        else:
-            return {
-                "valid": False,
-                "message": "Token invalide ou expiré"
-            }
-    except Exception as e:
-        print(f"Erreur lors de la vérification du token: {str(e)}")
-        raise HTTPException(400, "Erreur lors de la vérification du token")
+    # Fonctionnalité désactivée
+    raise HTTPException(410, "La récupération de mot de passe par email est désactivée")
 
 @app.post("/auth/reset-password")
 def reset_password(inp: ResetPasswordIn, db: Session = Depends(get_db)):
-    """Réinitialise le mot de passe avec un token valide."""
-    try:
-        user_repo = PostgreSQLUserRepository(db)
-        auth_service = AuthService(user_repo)
-        
-        success = auth_service.reset_password(inp.token, inp.new_password)
-        
-        if success:
-            return {
-                "message": "Mot de passe réinitialisé avec succès",
-                "success": True
-            }
-        else:
-            raise HTTPException(400, "Token invalide ou expiré")
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Erreur lors de la réinitialisation du mot de passe: {str(e)}")
-        raise HTTPException(400, "Erreur lors de la réinitialisation du mot de passe")
+    # Fonctionnalité désactivée
+    raise HTTPException(410, "La récupération de mot de passe par email est désactivée")
+
+# ========== Changement de mot de passe (authentifié) ==========
+@app.post("/auth/change-password")
+def change_password(inp: ChangePasswordIn, u: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Permet à un utilisateur connecté de changer son mot de passe."""
+    user_repo = PostgreSQLUserRepository(db)
+    auth_service = AuthService(user_repo)
+    # Vérifier l'ancien mot de passe
+    if not auth_service.verify_password(inp.current_password, u.password_hash):
+        raise HTTPException(400, "Ancien mot de passe incorrect")
+    # Mettre à jour avec le nouveau hash
+    u.password_hash = auth_service.hash_password(inp.new_password)  # type: ignore
+    user_repo.update(u)
+    return {"message": "Mot de passe mis à jour"}
+
+# ========== Réinitialisation simple par email (non connecté) ==========
+@app.post("/auth/reset-password-simple")
+def reset_password_simple(inp: SimpleResetPasswordIn, db: Session = Depends(get_db)):
+    """Permet à un utilisateur non connecté de définir un nouveau mot de passe via son email.
+    - Si l'email existe, met à jour le mot de passe.
+    - Sinon, 404.
+    """
+    user_repo = PostgreSQLUserRepository(db)
+    auth_service = AuthService(user_repo)
+    # Rechercher l'utilisateur par email
+    user = db.query(User).filter(User.email == inp.email).first()
+    if not user:
+        raise HTTPException(404, "Email introuvable")
+    # Mettre à jour le hash du mot de passe
+    user.password_hash = auth_service.hash_password(inp.new_password)  # type: ignore
+    user_repo.update(user)
+    return {"message": "Mot de passe réinitialisé"}
 
 # Voir son profil
 @app.get("/auth/me", response_model=UserOut)
@@ -1081,7 +1065,8 @@ def list_products(db: Session = Depends(get_db)):
                 description=str(getattr(p, 'description', '')),
                 price_cents=int(getattr(p, 'price_cents', 0)),
                 stock_qty=int(getattr(p, 'stock_qty', 0)),
-                active=bool(getattr(p, 'active', True))
+                active=bool(getattr(p, 'active', True)),
+                image_url=getattr(p, 'image_url', None) or None
             ))
         return out
     except Exception as e:
@@ -1103,7 +1088,8 @@ def get_product(product_id: str, db: Session = Depends(get_db)):
             description=cast(str, product.description),
             price_cents=cast(int, product.price_cents),
             stock_qty=cast(int, product.stock_qty),
-            active=cast(bool, product.active)
+            active=cast(bool, product.active),
+            image_url=cast(str, product.image_url) if product.image_url else None
         )
     except HTTPException:
         raise
@@ -1133,15 +1119,35 @@ def view_cart(u: User = Depends(current_user), db: Session = Depends(get_db)):
     if not c:
         return CartOut(user_id=str(u.id), items={}, total_cents=0)
     
+    # Filtrer les produits inactifs et les supprimer automatiquement du panier
+    from database.models import Product, CartItem
+    from database.repositories_simple import _uuid_or_raw
+    items_to_remove = []
+    
     items = {}
     total_cents = 0
     for item in c.items:
-        items[str(item.product_id)] = CartItemOut(
-            product_id=str(item.product_id),
-            quantity=item.quantity
-        )
-        # Calculate total (simplified - would need product price in real implementation)
-        total_cents += item.quantity * 1000  # Mock price for test
+        # Vérifier si le produit existe et est actif
+        product_id_uuid = _uuid_or_raw(str(item.product_id))
+        product = db.query(Product).filter(Product.id == product_id_uuid).first()
+        
+        if product and product.active:
+            # Produit actif : l'ajouter au panier retourné
+            items[str(item.product_id)] = CartItemOut(
+                product_id=str(item.product_id),
+                quantity=item.quantity
+            )
+            # Calculate total (simplified - would need product price in real implementation)
+            total_cents += item.quantity * 1000  # Mock price for test
+        else:
+            # Produit inactif ou supprimé : le marquer pour suppression
+            items_to_remove.append(item)
+    
+    # Supprimer les articles inactifs du panier
+    if items_to_remove:
+        for item in items_to_remove:
+            db.delete(item)
+        db.commit()
     
     return CartOut(user_id=str(u.id), items=items, total_cents=total_cents)
 
@@ -1454,7 +1460,8 @@ def admin_list_products(u = Depends(require_admin), db: Session = Depends(get_db
             description=cast(str, p.description),
             price_cents=cast(int, p.price_cents),
             stock_qty=cast(int, p.stock_qty),
-            active=cast(bool, p.active)
+            active=cast(bool, p.active),
+            image_url=cast(str, p.image_url) if p.image_url else None
         ) for p in products]
     except Exception as e:
         raise HTTPException(500, f"Erreur lors du chargement des produits: {str(e)}")
@@ -1476,7 +1483,8 @@ def admin_create_product(inp: ProductCreateIn, u = Depends(require_admin), db: S
             "description": inp.description or "",
             "price_cents": inp.price_cents,
             "stock_qty": inp.stock_qty,
-            "active": inp.active
+            "active": inp.active,
+            "image_url": inp.image_url or None
         }
         product = product_repo.create(product_data)
         return ProductOut(
@@ -1485,7 +1493,8 @@ def admin_create_product(inp: ProductCreateIn, u = Depends(require_admin), db: S
             description=cast(str, product.description),
             price_cents=cast(int, product.price_cents),
             stock_qty=cast(int, product.stock_qty),
-            active=cast(bool, product.active)
+            active=cast(bool, product.active),
+            image_url=cast(str, product.image_url) if product.image_url else None
         )
     except HTTPException:
         raise
@@ -1516,8 +1525,23 @@ def admin_update_product(product_id: str, inp: ProductUpdateIn, u = Depends(requ
             product.price_cents = inp.price_cents  # type: ignore
         if inp.stock_qty is not None:
             product.stock_qty = inp.stock_qty  # type: ignore
+        # Vérifier si le produit passe de actif à inactif
+        was_active = product.active
         if inp.active is not None:
             product.active = inp.active  # type: ignore
+            
+            # Si le produit passe de actif à inactif, supprimer tous les articles du panier
+            if was_active and not inp.active:
+                from database.models import CartItem
+                from database.repositories_simple import _uuid_or_raw
+                product_id_uuid = _uuid_or_raw(product_id)
+                # Supprimer tous les CartItem associés à ce produit
+                deleted_count = db.query(CartItem).filter(CartItem.product_id == product_id_uuid).delete()
+                db.commit()
+                print(f"Produit {product.name} passé en inactif : {deleted_count} article(s) supprimé(s) des paniers")
+        
+        if inp.image_url is not None:
+            product.image_url = inp.image_url  # type: ignore
         
         product_repo.update(product)
         return ProductOut(
@@ -1526,7 +1550,8 @@ def admin_update_product(product_id: str, inp: ProductUpdateIn, u = Depends(requ
             description=cast(str, product.description),
             price_cents=cast(int, product.price_cents),
             stock_qty=cast(int, product.stock_qty),
-            active=cast(bool, product.active)
+            active=cast(bool, product.active),
+            image_url=cast(str, product.image_url) if product.image_url else None
         )
     except HTTPException:
         raise
@@ -1553,6 +1578,45 @@ def admin_delete_product(product_id: str, u = Depends(require_admin), db: Sessio
         raise
     except Exception as e:
         raise HTTPException(500, f"Erreur lors de la suppression du produit: {str(e)}")
+
+@app.post("/admin/products/upload-image")
+async def admin_upload_image(
+    file: UploadFile = File(...),
+    u = Depends(require_admin)
+):
+    """
+    Endpoint pour uploader une image de produit.
+    Accepte les formats: jpg, jpeg, png, gif, webp
+    Retourne l'URL de l'image uploadée.
+    """
+    try:
+        # Vérifier le type de fichier
+        allowed_extensions = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
+        file_ext = Path(file.filename).suffix.lower() if file.filename else ""
+        
+        if file_ext not in allowed_extensions:
+            raise HTTPException(
+                400, 
+                f"Format de fichier non autorisé. Formats acceptés: {', '.join(allowed_extensions)}"
+            )
+        
+        # Générer un nom de fichier unique
+        file_id = str(uuid.uuid4())
+        filename = f"{file_id}{file_ext}"
+        file_path = os.path.join(IMAGES_DIR, filename)
+        
+        # Sauvegarder le fichier
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Retourner l'URL de l'image
+        image_url = f"/static/images/{filename}"
+        return {"image_url": image_url, "filename": filename}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Erreur lors de l'upload de l'image: {str(e)}")
 
 @app.post("/admin/products/reset-defaults")
 def admin_reset_products_to_four(u = Depends(require_admin), db: Session = Depends(get_db)):

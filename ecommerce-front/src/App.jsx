@@ -17,18 +17,24 @@ CONCEPTS CLÉS :
 */
 
 // ========== IMPORTS ==========
-import React, { useEffect, useState } from "react";  // React = bibliothèque pour créer des interfaces
+import React, { useState } from "react";  // React = bibliothèque pour créer des interfaces
 import { Routes, Route, Link } from "react-router-dom";  // React Router = gestion de la navigation
 import { AuthProvider } from "./contexts/AuthProvider";  // Context d'authentification
 import { useAuth } from "./hooks/useAuth";  // Hook pour accéder aux infos utilisateur
 import ProtectedRoute from "./components/ProtectedRoute";  // Composant pour protéger les routes
-import Footer from "./components/Footer";  // Pied de page
+import BurgerMenu from "./components/BurgerMenu";  // Menu burger
+import CartIcon from "./components/CartIcon";  // Icône de panier
+import CartMenu from "./components/CartMenu";  // Menu panier latéral
+import UserMenu from "./components/UserMenu";  // Menu utilisateur
+import Home from "./pages/Home";  // Page d'accueil
 import Catalog from "./pages/Catalog";
+import ProductDetail from "./pages/ProductDetail";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Cart from "./pages/Cart";
+import Payment from "./pages/Payment";
 import Admin from "./pages/Admin";
 import Profile from "./pages/Profile";
 import Orders from "./pages/Orders";
@@ -53,113 +59,44 @@ import "./styles/global.css";
  * @returns {JSX.Element}
  */
 function AppContent() {
-  const { user, logout, isAuthenticated, loading } = useAuth();
-  const [role, setRole] = useState(() => localStorage.getItem("role"));
-
-  // Synchronise le rôle quand l'utilisateur change
-  useEffect(() => {
-    if (user) {
-      const userRole = user.is_admin ? "admin" : "user";
-      localStorage.setItem("role", userRole);
-      setRole(userRole);
-    } else {
-      localStorage.removeItem("role");
-      setRole(null);
-    }
-  }, [user]);
-
-  // Déconnexion
-  function handleLogout() {
-    logout();
-    window.location.assign("/"); // redirection simple
-  }
-
-  const isAuth = isAuthenticated();
+  const { loading } = useAuth();
+  const [isCartMenuOpen, setIsCartMenuOpen] = useState(false);
 
   // Afficher un indicateur de chargement pendant la vérification de l'authentification
   if (loading) {
     return (
-      <div style={{ padding: 40, fontFamily: "Arial, sans-serif", textAlign: "center" }}>
-        <h2>Chargement...</h2>
-        <p>Vérification de votre authentification...</p>
+      <div className="page-loading">
+        <div className="loading-spinner"></div>
+        <p className="loading-text">Chargement...</p>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 40, fontFamily: "Arial, sans-serif" }}>
-      <nav
-        style={{
-          marginBottom: 24,
-          display: "flex",
-          gap: 16,
-          alignItems: "center",
-          flexWrap: "wrap",
-          borderBottom: "1px solid #e5e7eb",
-          paddingBottom: 16,
-        }}
-      >
-        {/* Navigation principale */}
-        <Link to="/" style={{ fontWeight: "bold", color: "#1f2937" }}>Accueil</Link>
-        <Link to="/cart">Panier</Link>
+    <div className="app-wrapper">
+      {/* ===== HEADER AVEC MENU BURGER ===== */}
+      <header className="app-header-main">
+        <div className="app-header-main__container">
+          <BurgerMenu />
+          <Link to="/" className="app-header-main__logo">
+            <span className="app-header-main__logo-text">YOUR SHAPE</span>
+          </Link>
+          <div className="app-header-main__actions">
+            <CartIcon onOpen={() => setIsCartMenuOpen(true)} />
+            <UserMenu />
+          </div>
+        </div>
+      </header>
 
-        {/* Navigation pour utilisateurs connectés */}
-        {isAuth && (
-          <>
-            <Link to="/profile">Mon profil</Link>
-            <Link to="/orders">Mes commandes</Link>
-            <Link to="/support">Support</Link>
-          </>
-        )}
+      {/* ===== MENU PANIER LATÉRAL ===== */}
+      <CartMenu isOpen={isCartMenuOpen} onClose={() => setIsCartMenuOpen(false)} />
 
-        {/* Navigation admin */}
-        {role === "admin" && (
-          <>
-            <span style={{ color: "#dc2626", fontWeight: "bold" }}>|</span>
-            <Link to="/admin" style={{ color: "#dc2626", fontWeight: "bold" }}>Administration</Link>
-            <Link to="/admin/support" style={{ color: "#dc2626" }}>Support Admin</Link>
-          </>
-        )}
-
-        {/* Navigation pour utilisateurs non connectés */}
-        {!isAuth && (
-          <>
-            <Link to="/login" style={{ color: "#059669" }}>Connexion</Link>
-            <Link to="/register" style={{ color: "#059669" }}>Inscription</Link>
-          </>
-        )}
-
-        {/* Informations utilisateur et déconnexion */}
-        {isAuth && (
-          <>
-            <span style={{ color: "#6b7280", fontSize: "0.9em" }}>
-              Connecté en tant que <strong>{role === "admin" ? "Administrateur" : "Client"}</strong>
-            </span>
-            <button
-              onClick={handleLogout}
-              className="logout-btn"
-              style={{
-                background: "#fef2f2",
-                color: "#dc2626",
-                border: "1px solid #fecaca",
-                borderRadius: 6,
-                padding: "6px 12px",
-                cursor: "pointer",
-                fontWeight: "600",
-                fontSize: "0.9em"
-              }}
-              title="Se déconnecter"
-            >
-              Déconnexion
-            </button>
-          </>
-        )}
-      </nav>
-
-      <h1>TechStore</h1>
-
-      <Routes>
-        <Route path="/" element={<Catalog />} />
+      {/* ===== CONTENU PRINCIPAL ===== */}
+      <main className="app-main">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/catalog" element={<Catalog />} />
+          <Route path="/products/:productId" element={<ProductDetail />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -170,6 +107,11 @@ function AppContent() {
         <Route path="/profile" element={
           <ProtectedRoute requireAuth={true}>
             <Profile />
+          </ProtectedRoute>
+        } />
+        <Route path="/payment/:orderId" element={
+          <ProtectedRoute requireAuth={true}>
+            <Payment />
           </ProtectedRoute>
         } />
         <Route path="/orders" element={
@@ -225,9 +167,8 @@ function AppContent() {
         <Route path="/livraison" element={<Livraison />} />
         <Route path="/paiement-securise" element={<PaiementSecurise />} />
         <Route path="/garanties" element={<Garanties />} />
-      </Routes>
-
-      <Footer />
+        </Routes>
+      </main>
     </div>
   );
 }

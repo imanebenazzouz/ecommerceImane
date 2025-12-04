@@ -68,7 +68,17 @@ async function request(path, init = {}) {
       if (typeof payload === "string") {
         msg = payload;
       } else if (payload.detail) {
-        msg = payload.detail;
+        // FastAPI retourne parfois detail comme array pour les erreurs de validation
+        if (Array.isArray(payload.detail)) {
+          // Extraire les messages d'erreur du tableau
+          msg = payload.detail.map(err => {
+            if (typeof err === "string") return err;
+            if (err.msg) return err.msg;
+            return JSON.stringify(err);
+          }).join(", ");
+        } else {
+          msg = payload.detail;
+        }
       } else if (payload.message) {
         msg = payload.message;
       } else if (payload.error) {
@@ -196,9 +206,34 @@ async function verifyResetToken({ token }) {
  * @returns {Promise<{message:string,success:boolean}>}
  */
 async function resetPassword({ token, new_password }) {
+  // Désactivé côté backend (retournera 410)
   return request("/auth/reset-password", {
     method: "POST",
     body: JSON.stringify({ token, new_password }),
+  });
+}
+
+/**
+ * Change password for the authenticated user.
+ * @param {{current_password:string,new_password:string}} params
+ * @returns {Promise<{message:string}>}
+ */
+async function changePassword({ current_password, new_password }) {
+  return request("/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify({ current_password, new_password }),
+  });
+}
+
+/**
+ * Simple reset for unauthenticated user using email.
+ * @param {{email:string,new_password:string}} params
+ * @returns {Promise<{message:string}>}
+ */
+async function resetPasswordSimple({ email, new_password }) {
+  return request("/auth/reset-password-simple", {
+    method: "POST",
+    body: JSON.stringify({ email, new_password }),
   });
 }
 
@@ -420,6 +455,41 @@ async function adminUpdateProduct(id, body) {
  */
 async function adminDeleteProduct(id) {
   return request(`/admin/products/${id}`, { method: "DELETE" });
+}
+
+/**
+ * Admin: upload a product image.
+ * @param {File} file - The image file to upload
+ * @returns {Promise<{image_url: string, filename: string}>}
+ */
+async function adminUploadImage(file) {
+  const token = getToken();
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(API + "/admin/products/upload-image", {
+    method: "POST",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    let msg;
+    try {
+      const payload = JSON.parse(text);
+      msg = payload.detail || payload.message || payload.error || `Erreur ${res.status}`;
+    } catch {
+      msg = text || `Erreur HTTP ${res.status}`;
+    }
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
+  }
+
+  return res.json();
 }
 
 /* =========================
@@ -645,7 +715,8 @@ async function adminPostSupportMessage(threadId, { content }) {
 export const api = {
   // Auth
   register, login, logout, me, updateProfile, setToken,
-  forgotPassword, verifyResetToken, resetPassword,
+  changePassword,
+  resetPasswordSimple,
 
   // Catalogue / Panier / Commandes (user)
   listProducts, getProduct,
@@ -661,6 +732,7 @@ export const api = {
   adminCreateProduct,
   adminUpdateProduct,
   adminDeleteProduct,
+  adminUploadImage,
 
   // Admin Commandes
   adminListOrders,

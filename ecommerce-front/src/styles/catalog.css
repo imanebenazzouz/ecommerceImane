@@ -127,9 +127,9 @@
 }
 
 .cat__alert--ok {
-  background: var(--success-50);
-  color: var(--success-700);
-  border-color: var(--success-200);
+  background: #fef7f7;
+  color: var(--text);
+  border-color: #e8cfda;
 }
 
 .cat__alert--ok::after {
@@ -179,6 +179,19 @@
   flex-direction: column;
   position: relative;
   overflow: hidden;
+}
+
+.pcard__link {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  cursor: pointer;
+}
+
+.pcard__link:hover {
+  color: inherit;
 }
 
 .pcard::before {

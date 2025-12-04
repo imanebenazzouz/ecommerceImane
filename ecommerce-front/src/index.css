@@ -54,7 +54,7 @@ body {
   padding: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  background: #fef7f7; /* Fond rose clair */
   color: var(--text, #0f172a);
   font-size: var(--text-base, 1rem);
   line-height: 1.6;

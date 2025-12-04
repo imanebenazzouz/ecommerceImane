@@ -3,6 +3,15 @@ set -e
 
 echo "🚀 Démarrage de l'application ecommerce..."
 
+# Charger la configuration email (Brevo) si présente dans l'image
+if [ -f "/app/config_email.sh" ]; then
+  echo "📧 Chargement de la configuration email depuis /app/config_email.sh"
+  . /app/config_email.sh
+elif [ -f "./config_email.sh" ]; then
+  echo "📧 Chargement de la configuration email depuis ./config_email.sh"
+  . ./config_email.sh
+fi
+
 # Attendre que la base de données soit prête
 echo "⏳ Attente de la base de données PostgreSQL..."
 until python -c "

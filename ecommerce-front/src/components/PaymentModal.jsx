@@ -227,6 +227,13 @@ export default function PaymentModal({
     }
   };
 
+  const handlePostalCodeKeyPress = (e) => {
+    // Bloquer tout sauf les chiffres
+    if (!/[0-9]/.test(e.key)) {
+      e.preventDefault();
+    }
+  };
+
   const handlePhoneChange = (e) => {
     const sanitized = sanitizeNumeric(e.target.value);
     setPhone(sanitized);
@@ -246,6 +253,13 @@ export default function PaymentModal({
       setErrors(prev => ({ ...prev, streetNumber: validation.valid ? null : validation.error }));
     } else {
       setErrors(prev => ({ ...prev, streetNumber: null }));
+    }
+  };
+
+  const handleStreetNumberKeyPress = (e) => {
+    // Bloquer tout sauf les chiffres
+    if (!/[0-9]/.test(e.key)) {
+      e.preventDefault();
     }
   };
 
@@ -432,6 +446,7 @@ export default function PaymentModal({
                   inputMode="numeric"
                   value={postalCode}
                   onChange={handlePostalCodeChange}
+                  onKeyPress={handlePostalCodeKeyPress}
                   placeholder="75001"
                   maxLength={5}
                   autoComplete="postal-code"
@@ -484,6 +499,7 @@ export default function PaymentModal({
                   inputMode="numeric"
                   value={streetNumber}
                   onChange={handleStreetNumberChange}
+                  onKeyPress={handleStreetNumberKeyPress}
                   placeholder="123"
                   maxLength={10}
                   autoComplete="off"

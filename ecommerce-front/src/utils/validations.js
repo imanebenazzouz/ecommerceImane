@@ -439,3 +439,54 @@ export function validateAddress(address) {
   return { valid: true, error: null };
 }
 
+/**
+ * Reconstruit une adresse complète à partir des champs séparés
+ * @param {string} streetNumber - Le numéro de rue
+ * @param {string} streetName - Le nom de rue/avenue
+ * @param {string} postalCode - Le code postal
+ * @returns {string} - L'adresse complète formatée
+ */
+export function buildFullAddress(streetNumber, streetName, postalCode) {
+  const parts = [];
+  if (streetNumber?.trim()) parts.push(streetNumber.trim());
+  if (streetName?.trim()) parts.push(streetName.trim());
+  if (postalCode?.trim()) parts.push(postalCode.trim());
+  return parts.join(' ');
+}
+
+/**
+ * Parse une adresse complète pour extraire numéro, nom de rue et code postal
+ * @param {string} address - L'adresse complète
+ * @returns {{ streetNumber: string, streetName: string, postalCode: string }}
+ */
+export function parseAddress(address) {
+  if (!address || typeof address !== 'string') {
+    return { streetNumber: '', streetName: '', postalCode: '' };
+  }
+
+  const cleaned = address.trim().replace(/\s+/g, ' ');
+  
+  // Extraire le code postal (5 chiffres)
+  const postalMatch = cleaned.match(/\b(\d{5})\b/);
+  const postalCode = postalMatch ? postalMatch[1] : '';
+  
+  // Extraire le numéro de rue (chiffres au début)
+  const numberMatch = cleaned.match(/^(\d+[a-zA-Z]?)\s+/);
+  const streetNumber = numberMatch ? numberMatch[1] : '';
+  
+  // Extraire le nom de rue (tout le reste sauf le code postal et le numéro)
+  let streetName = cleaned;
+  if (streetNumber) {
+    streetName = streetName.replace(new RegExp(`^${streetNumber}\\s+`), '');
+  }
+  if (postalCode) {
+    streetName = streetName.replace(new RegExp(`\\s*${postalCode}.*$`), '').trim();
+  }
+  
+  return {
+    streetNumber: streetNumber || '',
+    streetName: streetName || '',
+    postalCode: postalCode || ''
+  };
+}
+

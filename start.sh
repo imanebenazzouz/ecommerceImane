@@ -49,6 +49,12 @@ start_backend() {
     
     cd ecommerce-backend
     
+    # Charger la configuration email (Brevo) si présente
+    if [ -f "config_email.sh" ]; then
+        print_message "📧 Chargement de la configuration email (config_email.sh)" $YELLOW
+        source config_email.sh
+    fi
+    
     # Vérifier si l'environnement virtuel existe
     if [ ! -d "venv" ]; then
         print_message "📦 Création de l'environnement virtuel..." $YELLOW
