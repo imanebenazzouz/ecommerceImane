@@ -3352,9 +3352,10 @@ button[onclick*="Logout"]:hover {
   width: 100%;
   min-height: 100vh;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: var(--space-4) var(--space-6) var(--space-8);
+  padding: 0 var(--space-6) var(--space-8);
+  padding-top: 1rem;
   background: #fef7f7;
 }
 
@@ -3365,6 +3366,8 @@ button[onclick*="Logout"]:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-8);
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .home-visual-hero__title {
@@ -3372,9 +3375,20 @@ button[onclick*="Logout"]:hover {
   font-weight: 800;
   color: #8b6a7a;
   text-align: center;
-  margin: 0;
+  margin: 0 0 var(--space-4) 0;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  animation: fadeInDown 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.home-visual-hero__description {
+  font-size: clamp(1rem, 1.5vw, 1.25rem);
+  color: #6b7280;
+  text-align: center;
+  max-width: 700px;
+  margin: 0 auto var(--space-8) auto;
+  line-height: 1.6;
+  animation: fadeInUp 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.3s both;
 }
 
 .home-visual-hero__panels {
@@ -3391,11 +3405,40 @@ button[onclick*="Logout"]:hover {
   aspect-ratio: 4 / 5;
 }
 
+.home-visual-panel--animate {
+  opacity: 0;
+  animation: fadeInUp 1.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
 .home-visual-panel__image {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+
+/* Animations douces */
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .home-cta-visual {

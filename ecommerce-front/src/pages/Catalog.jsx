@@ -171,8 +171,8 @@ export default function Catalog() {
         // Déclencher un événement pour mettre à jour l'icône du panier
         window.dispatchEvent(new Event('cartUpdated'));
         
-        // Afficher un message de succès avec indication "(local)"
-        setMsg(`${p.name} ajouté au panier (local)`);
+        // Afficher un message de succès
+        setMsg(`${p.name} ajouté au panier`);
       }
       
     } catch (e) {
@@ -306,18 +306,16 @@ export default function Catalog() {
                   {/* Condition : si le produit est actif (disponible à la vente) */}
                   {p.active ? (
                     // ===== PRODUIT ACTIF : AFFICHER LE STOCK =====
-                    // \u00a0 = espace insécable (non-breaking space) pour éviter le retour à la ligne
-                    // IIFE pour calculer l'affichage du stock
-                    <>Stock\u00a0:{" "}{(() => { 
+                    (() => { 
                       // Récupérer la quantité en stock (compatibilité avec différents formats)
                       const s = p.stock_qty || p.stock || 0; 
                       // Si stock < 5 : afficher "Faible" avec la quantité (alerte visuelle)
                       // Sinon : afficher le nombre exact d'unités disponibles
-                      return s < 5 ? `Faible (${s})` : s; 
-                    })()}</>
+                      return s < 5 ? `Stock faible (${s})` : `Stock : ${s}`; 
+                    })()
                   ) : (
                     // ===== PRODUIT INACTIF : AFFICHER "INDISPONIBLE" =====
-                    <>Indisponible</>
+                    "Indisponible"
                   )}
                 </span>
               </div>

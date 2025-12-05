@@ -38,10 +38,14 @@ export default function Home() {
       {/* ===== SECTION HERO AVEC TROIS PANNEAUX ===== */}
       <section className="home-visual-hero">
         <div className="home-visual-hero__content">
-          <h2 className="home-visual-hero__title">Notre Processus de Création</h2>
+          <h2 className="home-visual-hero__title">Nos Collections</h2>
+          <p className="home-visual-hero__description">
+            Découvrez notre sélection de produits premium, 
+            alliant design, qualité et confort pour sublimer votre style.
+          </p>
           <div className="home-visual-hero__panels">
             {/* Panneau 1 - Design et Développement */}
-            <div className="home-visual-panel">
+            <div className="home-visual-panel home-visual-panel--animate" style={{ animationDelay: '0.1s' }}>
               <img 
                 src={imgDesign}
                 alt="Design et développement - Session de création avec échantillons de couleurs et croquis"
@@ -50,7 +54,7 @@ export default function Home() {
             </div>
 
             {/* Panneau 2 - Photoshoot */}
-            <div className="home-visual-panel">
+            <div className="home-visual-panel home-visual-panel--animate" style={{ animationDelay: '0.2s' }}>
               <img 
                 src={imgPhotoshoot}
                 alt="Photoshoot - Modèle posant dans un studio avec portant à vêtements"
@@ -59,7 +63,7 @@ export default function Home() {
             </div>
 
             {/* Panneau 3 - Revue de Contenu */}
-            <div className="home-visual-panel">
+            <div className="home-visual-panel home-visual-panel--animate" style={{ animationDelay: '0.3s' }}>
               <img 
                 src={imgContentReview}
                 alt="Revue de contenu - Équipe examinant les images sur écran"

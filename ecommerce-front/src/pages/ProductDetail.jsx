@@ -118,7 +118,7 @@ export default function ProductDetail() {
         // Déclencher un événement pour mettre à jour l'icône du panier
         window.dispatchEvent(new Event('cartUpdated'));
         
-        setMsg(`${product.name} ajouté au panier (local)`);
+        setMsg(`${product.name} ajouté au panier`);
       }
     } catch (e) {
       if (e.message.startsWith("HTTP 401")) {

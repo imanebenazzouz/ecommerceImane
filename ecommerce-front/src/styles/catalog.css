@@ -133,8 +133,8 @@
 }
 
 .cat__alert--ok::after {
-  content: '✅';
-  margin-right: var(--space-2);
+  content: '';
+  margin-right: 0;
 }
 
 .cat__alert--ko {
@@ -280,10 +280,7 @@
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-full);
   background: var(--gray-100);
-}
-
-.pcard__stock::first-letter {
-  text-transform: uppercase;
+  white-space: nowrap;
 }
   
 /* ===== Enhanced Pied de carte ===== */
