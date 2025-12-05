@@ -2345,6 +2345,9 @@ button[onclick*="Logout"]:hover {
   gap: var(--space-4);
   min-height: 56px;
   position: relative;
+  background: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
 }
 
 .app-header-main__logo {
@@ -2375,6 +2378,9 @@ button[onclick*="Logout"]:hover {
   overflow: visible;
   outline: none;
   box-shadow: none;
+  background: none !important;
+  backdrop-filter: none !important;
+  filter: none !important;
 }
 
 .cart-icon {
@@ -2388,13 +2394,19 @@ button[onclick*="Logout"]:hover {
   cursor: pointer;
   transition: color 0.2s ease;
   text-decoration: none;
-  background: none;
+  background: none !important;
   border: none;
   padding: 0;
   overflow: visible;
   flex-shrink: 0;
   outline: none;
-  box-shadow: none;
+  box-shadow: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.cart-icon::before {
+  display: none !important;
 }
 
 .cart-icon:hover {
@@ -2411,6 +2423,8 @@ button[onclick*="Logout"]:hover {
   width: 24px;
   height: 24px;
   display: block;
+  position: relative;
+  z-index: 2;
 }
 
 .cart-icon__badge {
@@ -2436,19 +2450,29 @@ button[onclick*="Logout"]:hover {
 }
 
 .app-header-main__user-icon {
-  width: 32px;
-  height: 32px;
-  color: #e8cfda;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: #e8cfda;
   cursor: pointer;
   transition: color 0.2s ease;
-  background: none;
+  text-decoration: none;
+  background: none !important;
   border: none;
   padding: 0;
+  overflow: visible;
+  flex-shrink: 0;
   outline: none;
-  box-shadow: none;
+  box-shadow: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.app-header-main__user-icon::before {
+  display: none !important;
 }
 
 .app-header-main__user-icon:hover {
@@ -2464,6 +2488,9 @@ button[onclick*="Logout"]:hover {
 .app-header-main__user-icon svg {
   width: 24px;
   height: 24px;
+  display: block;
+  position: relative;
+  z-index: 2;
 }
 
 /* Menu utilisateur déroulant */
@@ -3327,7 +3354,7 @@ button[onclick*="Logout"]:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-8) var(--space-6);
+  padding: var(--space-4) var(--space-6) var(--space-8);
   background: #fef7f7;
 }
 

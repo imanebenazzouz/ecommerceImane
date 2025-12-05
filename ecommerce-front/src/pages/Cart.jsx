@@ -78,6 +78,9 @@ export default function Cart() {
   // showPaymentModal : true pour afficher la modal de paiement
   // false pour la masquer
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  
+  // acceptedCGV : true si l'utilisateur a accepté les CGV (obligatoire pour passer commande)
+  const [acceptedCGV, setAcceptedCGV] = useState(false);
 
   // ===== CHARGEMENT INITIAL DU PANIER =====
   /**
@@ -379,16 +382,23 @@ export default function Cart() {
     if (pending) return; // Si déjà en cours, ignorer le clic
     
     setErr(""); setMsg("");
+    
+    // Vérification d'authentification avant le paiement
+    if (!isAuthenticated()) {
+      // Redirection vers login avec paramètre de retour
+      navigate("/login?next=/cart");
+      return;
+    }
+    
+    // Vérification de l'acceptation des CGV (obligatoire légalement)
+    if (!acceptedCGV) {
+      setErr("Vous devez accepter les Conditions Générales de Vente pour passer commande.");
+      return;
+    }
+    
     setPending(true); // Mettre pending AVANT toute autre opération
     
     try {
-      // Vérification d'authentification avant le paiement
-      if (!isAuthenticated()) {
-        setPending(false);
-        // Redirection vers login avec paramètre de retour
-        navigate("/login?next=/cart");
-        return;
-      }
 
       const res = await api.checkout();
       setOrderId(res.order_id);
@@ -555,12 +565,71 @@ export default function Cart() {
             </button>
           </div>
 
+          {/* Case à cocher pour accepter les CGV (obligatoire) */}
+          {isAuthenticated() && (
+            <div style={{ 
+              marginTop: 20, 
+              marginBottom: 12,
+              padding: 16,
+              backgroundColor: "#f9fafb",
+              border: "1px solid #e5e7eb",
+              borderRadius: 8
+            }}>
+              <label style={{ 
+                display: "flex", 
+                alignItems: "flex-start", 
+                gap: 12, 
+                cursor: "pointer",
+                fontSize: "0.9rem",
+                lineHeight: 1.5
+              }}>
+                <input
+                  type="checkbox"
+                  checked={acceptedCGV}
+                  onChange={(e) => setAcceptedCGV(e.target.checked)}
+                  style={{
+                    marginTop: 2,
+                    width: 18,
+                    height: 18,
+                    cursor: "pointer"
+                  }}
+                />
+                <span>
+                  J'accepte les{" "}
+                  <a 
+                    href="/legal/cgv" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    style={{ color: "#2563eb", textDecoration: "underline" }}
+                  >
+                    Conditions Générales de Vente
+                  </a>
+                  {" "}et j'ai pris connaissance de la{" "}
+                  <a 
+                    href="/legal/retractation" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    style={{ color: "#2563eb", textDecoration: "underline" }}
+                  >
+                    politique de rétractation
+                  </a>
+                  . <strong style={{ color: "#dc2626" }}>*</strong>
+                </span>
+              </label>
+            </div>
+          )}
+
           <div style={{ marginTop: 12 }}>
             {isAuthenticated() ? (
               <button
                 onClick={checkout}
-                disabled={pending}
-                style={{ ...btnPrimary }}
+                disabled={pending || !acceptedCGV}
+                style={{ 
+                  ...btnPrimary,
+                  opacity: (!acceptedCGV) ? 0.6 : 1,
+                  cursor: (!acceptedCGV) ? "not-allowed" : "pointer"
+                }}
+                title={!acceptedCGV ? "Veuillez accepter les CGV pour continuer" : ""}
               >
                 {pending ? "Création de la commande..." : "Passer au paiement"}
               </button>

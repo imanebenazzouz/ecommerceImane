@@ -55,6 +55,27 @@ export default function Footer() {
             <li>
               <Link to="/legal/retractation">Droit de Rétractation</Link>
             </li>
+            <li>
+              <Link to="/legal/mediation">Médiation de la Consommation</Link>
+            </li>
+            <li>
+              <button 
+                type="button"
+                className="footer-link-button"
+                onClick={() => {
+                  // Rouvrir le panneau de gestion des cookies
+                  if (window.openCookiePreferences) {
+                    window.openCookiePreferences();
+                  } else {
+                    // Fallback: recharger la page après avoir supprimé le consentement
+                    localStorage.removeItem("cookieConsent");
+                    window.location.reload();
+                  }
+                }}
+              >
+                Gérer les cookies
+              </button>
+            </li>
           </ul>
         </div>
 
@@ -109,6 +130,22 @@ export default function Footer() {
             <span title="Paiement sécurisé">💳 Paiement 100% sécurisé</span>
             <span className="separator">•</span>
             <span title="Satisfait ou remboursé">✓ Satisfait ou remboursé</span>
+          </p>
+          <p style={{ fontSize: "0.85rem", color: "#6b7280", marginTop: "8px" }}>
+            En cas de litige, vous pouvez utiliser la{" "}
+            <a 
+              href="https://ec.europa.eu/consumers/odr" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              style={{ color: "#2563eb", textDecoration: "underline" }}
+            >
+              plateforme européenne de règlement des litiges en ligne (ODR)
+            </a>
+            {" "}ou consulter notre{" "}
+            <Link to="/legal/mediation" style={{ color: "#2563eb", textDecoration: "underline" }}>
+              page de médiation
+            </Link>
+            .
           </p>
         </div>
       </div>

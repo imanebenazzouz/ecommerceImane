@@ -100,6 +100,39 @@
   margin-right: 12px;
 }
 
+.footer-link-button {
+  background: none;
+  border: none;
+  color: #d1d5db;
+  text-decoration: none;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+  display: inline-block;
+  position: relative;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
+}
+
+.footer-link-button::before {
+  content: '›';
+  margin-right: 8px;
+  color: #3b82f6;
+  font-weight: bold;
+  transition: margin-right 0.2s ease;
+}
+
+.footer-link-button:hover {
+  color: #3b82f6;
+  padding-left: 5px;
+}
+
+.footer-link-button:hover::before {
+  margin-right: 12px;
+}
+
 .footer-bottom {
   background: #111827;
   border-top: 1px solid #374151;

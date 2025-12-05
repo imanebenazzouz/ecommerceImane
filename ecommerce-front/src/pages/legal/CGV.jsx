@@ -127,15 +127,50 @@ export default function CGV() {
         </section>
 
         <section className="legal-section">
-          <h2>11. Litiges</h2>
+          <h2>11. Litiges et médiation</h2>
           <p>
             En cas de litige, vous pouvez recourir à une procédure de médiation conventionnelle 
             ou tout autre mode alternatif de règlement des différends. Les présentes CGV sont 
             soumises au droit français.
           </p>
+          
+          <h3>11.1 Médiation de la consommation</h3>
           <p>
-            <strong>Médiation :</strong> Conformément aux articles L.612-1 et suivants du 
-            Code de la consommation, vous pouvez faire appel au médiateur de la consommation.
+            Conformément aux articles L.612-1 et suivants du Code de la consommation, 
+            vous pouvez faire appel à notre médiateur de la consommation :
+          </p>
+          <ul>
+            <li><strong>Médiateur :</strong> Médiateur de la Consommation - CM2C</li>
+            <li><strong>Adresse :</strong> 14 rue Saint Jean, 75017 Paris</li>
+            <li><strong>Site web :</strong> <a href="https://www.cm2c.net" target="_blank" rel="noopener noreferrer">www.cm2c.net</a></li>
+            <li><strong>Email :</strong> contact@cm2c.net</li>
+            <li><strong>Téléphone :</strong> +33 (0)1 89 47 00 14</li>
+          </ul>
+          <p>
+            Pour plus d'informations, consultez notre{" "}
+            <a href="/legal/mediation">page de médiation</a>.
+          </p>
+
+          <h3>11.2 Plateforme européenne de règlement des litiges en ligne (ODR)</h3>
+          <p>
+            Conformément au Règlement (UE) n°524/2013, vous pouvez également utiliser 
+            la plateforme européenne de règlement des litiges en ligne (ODR) pour 
+            soumettre votre réclamation :
+          </p>
+          <ul>
+            <li><strong>Site web :</strong> <a href="https://ec.europa.eu/consumers/odr" target="_blank" rel="noopener noreferrer">https://ec.europa.eu/consumers/odr</a></li>
+            <li><strong>Email :</strong> <a href="mailto:ec-odr@ec.europa.eu">ec-odr@ec.europa.eu</a></li>
+          </ul>
+          <p>
+            Cette plateforme permet aux consommateurs et aux professionnels de l'Union 
+            Européenne de résoudre leurs litiges en ligne de manière simple et gratuite.
+          </p>
+
+          <h3>11.3 Recours judiciaire</h3>
+          <p>
+            La médiation n'est pas obligatoire. Vous conservez toujours le droit de 
+            saisir un tribunal compétent pour résoudre votre litige. En cas de litige, 
+            les tribunaux français sont seuls compétents, conformément à la législation française.
           </p>
         </section>
 

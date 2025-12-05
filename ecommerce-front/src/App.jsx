@@ -26,6 +26,7 @@ import BurgerMenu from "./components/BurgerMenu";  // Menu burger
 import CartIcon from "./components/CartIcon";  // Icône de panier
 import CartMenu from "./components/CartMenu";  // Menu panier latéral
 import UserMenu from "./components/UserMenu";  // Menu utilisateur
+import CookieConsent from "./components/CookieConsent";  // Bandeau de consentement aux cookies
 import Home from "./pages/Home";  // Page d'accueil
 import Catalog from "./pages/Catalog";
 import ProductDetail from "./pages/ProductDetail";
@@ -49,6 +50,7 @@ import MentionsLegales from "./pages/legal/MentionsLegales";
 import Confidentialite from "./pages/legal/Confidentialite";
 import Cookies from "./pages/legal/Cookies";
 import Retractation from "./pages/legal/Retractation";
+import Mediation from "./pages/legal/Mediation";
 import Livraison from "./pages/Livraison";
 import PaiementSecurise from "./pages/PaiementSecurise";
 import Garanties from "./pages/Garanties";
@@ -90,6 +92,9 @@ function AppContent() {
 
       {/* ===== MENU PANIER LATÉRAL ===== */}
       <CartMenu isOpen={isCartMenuOpen} onClose={() => setIsCartMenuOpen(false)} />
+
+      {/* ===== BANDEAU DE CONSENTEMENT AUX COOKIES ===== */}
+      <CookieConsent />
 
       {/* ===== CONTENU PRINCIPAL ===== */}
       <main className="app-main">
@@ -164,6 +169,7 @@ function AppContent() {
         <Route path="/legal/confidentialite" element={<Confidentialite />} />
         <Route path="/legal/cookies" element={<Cookies />} />
         <Route path="/legal/retractation" element={<Retractation />} />
+        <Route path="/legal/mediation" element={<Mediation />} />
         <Route path="/livraison" element={<Livraison />} />
         <Route path="/paiement-securise" element={<PaiementSecurise />} />
         <Route path="/garanties" element={<Garanties />} />
