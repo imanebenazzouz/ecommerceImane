@@ -356,7 +356,7 @@ export default function PaymentModal({
                 <FieldError error={errors.cardNumber} />
                 {!errors.cardNumber && (
                   <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4, marginBottom: 0 }}>
-                    💡 Pour tester : 4242424242424242 (accepté) ou ...0000 (refusé)
+                    💡 Cartes de test Stripe : 4242424242424242 (succès), 4000000000000002 (refusée), 4000000000009995 (fonds insuffisants)
                   </p>
                 )}
               </div>

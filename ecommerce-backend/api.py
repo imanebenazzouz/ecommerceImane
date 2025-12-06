@@ -83,6 +83,50 @@ def _get_repo_class(name: str):
 
 import os
 
+# Charger les variables d'environnement depuis config.env ou .env
+# Cherche d'abord config.env à la racine du projet, puis .env
+try:
+    from dotenv import load_dotenv
+    from pathlib import Path
+    
+    # Chercher config.env dans plusieurs emplacements possibles
+    # 1. À la racine du projet (parent de ecommerce-backend)
+    project_root = Path(__file__).parent.parent  # Remonter jusqu'à la racine du projet
+    config_env_path = project_root / "config.env"
+    env_path = project_root / ".env"
+    
+    # 2. Dans le répertoire courant (si lancé depuis la racine)
+    current_dir_config = Path("config.env")
+    current_dir_env = Path(".env")
+    
+    # 3. Dans ecommerce-backend (si config.env est là)
+    backend_config = Path(__file__).parent / "config.env"
+    backend_env = Path(__file__).parent / ".env"
+    
+    # Charger le premier fichier trouvé
+    if config_env_path.exists():
+        load_dotenv(dotenv_path=config_env_path)
+    elif current_dir_config.exists():
+        load_dotenv(dotenv_path=current_dir_config)
+    elif backend_config.exists():
+        load_dotenv(dotenv_path=backend_config)
+    elif env_path.exists():
+        load_dotenv(dotenv_path=env_path)
+    elif current_dir_env.exists():
+        load_dotenv(dotenv_path=current_dir_env)
+    elif backend_env.exists():
+        load_dotenv(dotenv_path=backend_env)
+    else:
+        load_dotenv()  # Fallback sur .env par défaut
+except ImportError:
+    # python-dotenv n'est pas installé, on continue sans
+    pass
+except Exception as e:
+    # Erreur lors du chargement, on continue sans (ne pas bloquer le démarrage)
+    import sys
+    print(f"⚠️  Warning: Could not load .env file: {e}", file=sys.stderr)
+    pass
+
 # Liste des origines (URLs) autorisées à appeler notre API
 ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Vite dev server (port par défaut)
@@ -1928,16 +1972,42 @@ def pay_order(order_id: str, payment_data: PayIn, uid: str = Depends(current_use
             if not is_valid_street_name:
                 raise HTTPException(422, street_name_error)
         
-        # ============ SIMULATION PAIEMENT ============
+        # ============ PAIEMENT VIA STRIPE ============
         from utils.validations import sanitize_numeric
-        card_number = sanitize_numeric(payment_data.card_number)
+        from services.payment_service import PaymentGateway
         
-        # Vérifier que la carte ne se termine pas par 0000 (règle métier pour les tests)
-        if card_number.endswith("0000"):
-            raise HTTPException(402, "Paiement refusé : carte invalide")
+        card_number = sanitize_numeric(payment_data.card_number)
         
         # Calculer le montant total
         total_cents = sum(item.unit_price_cents * item.quantity for item in order.items)
+        
+        # Initialiser le gateway Stripe
+        try:
+            gateway = PaymentGateway()
+        except ValueError as e:
+            raise HTTPException(500, f"Configuration Stripe manquante: {str(e)}")
+        
+        # Traiter le paiement via Stripe
+        user_email = None
+        try:
+            # Récupérer l'email de l'utilisateur si disponible
+            user_repo = PostgreSQLUserRepository(db)
+            user = user_repo.get_by_id(uid)
+            if user and hasattr(user, 'email'):
+                user_email = user.email
+        except Exception:
+            pass  # Email optionnel
+        
+        # Appeler Stripe pour traiter le paiement
+        stripe_result = gateway.charge_card(
+            card_number=card_number,
+            exp_month=payment_data.exp_month,
+            exp_year=payment_data.exp_year,
+            cvc=payment_data.cvc,
+            amount_cents=total_cents,
+            idempotency_key=order_id,
+            email=user_email
+        )
         
         # Sanitizer les données pour le stockage
         sanitized_postal = sanitize_numeric(payment_data.postal_code) if payment_data.postal_code else None
@@ -1950,21 +2020,28 @@ def pay_order(order_id: str, payment_data: PayIn, uid: str = Depends(current_use
         if payment_data.street_name:
             cleaned_street_name = re.sub(r'\s+', ' ', payment_data.street_name.strip())
         
-        # Simuler le paiement (réussi si validation passée)
+        # Créer l'enregistrement de paiement
         payment_data_dict = {
             "order_id": order_id,
             "amount_cents": total_cents,
-            "status": "SUCCEEDED",
+            "status": "SUCCEEDED" if stripe_result["success"] else "FAILED",
             "payment_method": "CARD",
             # Sauvegarder les informations de paiement
-            "card_last4": card_number[-4:],  # 4 derniers chiffres
+            "card_last4": card_number[-4:] if len(card_number) >= 4 else None,  # 4 derniers chiffres
             "postal_code": sanitized_postal,
             "phone": sanitized_phone,
             "street_number": sanitized_street,
-            "street_name": cleaned_street_name
+            "street_name": cleaned_street_name,
+            # Stocker le charge_id pour permettre les remboursements
+            "charge_id": stripe_result.get("charge_id") if stripe_result["success"] else None
         }
         
         payment = payment_repo.create(payment_data_dict)
+        
+        # Si le paiement a échoué, lever une exception
+        if not stripe_result["success"]:
+            error_message = stripe_result.get("failure_reason", "Paiement refusé")
+            raise HTTPException(402, error_message)
         
         # Décrémenter le stock et potentiellement désactiver les produits après PAIEMENT réussi
         # Seuil de masquage: si stock restant <= seuil, on met le produit inactif

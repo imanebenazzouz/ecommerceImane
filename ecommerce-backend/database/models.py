@@ -357,6 +357,10 @@ class Payment(Base):
     street_number = Column(String(10), nullable=True) # Numéro de rue
     street_name = Column(String(100), nullable=True)  # Nom de rue
     
+    # ID de la transaction Stripe (nécessaire pour les remboursements)
+    # Format: "ch_xxx" pour les charges Stripe, "ch_sim_xxx" pour les simulations
+    charge_id = Column(String(255), nullable=True)    # ID de la charge Stripe (pour remboursements)
+    
     # Relations
     order = relationship("Order")
 
