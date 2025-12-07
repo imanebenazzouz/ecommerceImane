@@ -32,6 +32,10 @@ export default function Admin() {
     stock_qty: "",
     active: true,
     image_url: "",
+    characteristics: "",
+    usage_advice: "",
+    commitment: "",
+    composition: "",
   });
   
   // État pour l'upload d'image
@@ -57,6 +61,7 @@ export default function Admin() {
     setErr("");
     try {
       const data = await api.adminListProducts();
+      console.log("Produits chargés:", data);
       setItems(data || []);
     } catch (e) {
       console.error("Erreur chargement produits:", e);
@@ -161,16 +166,34 @@ export default function Admin() {
 
       const body = {
         name: form.name.trim(),
-        description: form.description.trim(),
+        description: form.description.trim() || "",
         price_cents: eurToCents(form.price_eur),
         stock_qty: Number(form.stock_qty || 0),
         active: !!form.active,
         image_url: form.image_url || null,
+        characteristics: form.characteristics.trim() || null,
+        usage_advice: form.usage_advice.trim() || null,
+        commitment: form.commitment.trim() || null,
+        composition: form.composition.trim() || null,
       };
       
+      console.log("Données envoyées:", body);
+      
       const created = await api.adminCreateProduct(body);
+      console.log("Produit créé reçu:", created);
       setMsg(`Produit créé : ${created.name}`);
-      setForm({ name: "", description: "", price_eur: "", stock_qty: "", active: true, image_url: "" });
+      setForm({ 
+        name: "", 
+        description: "", 
+        price_eur: "", 
+        stock_qty: "", 
+        active: true, 
+        image_url: "",
+        characteristics: "",
+        usage_advice: "",
+        commitment: "",
+        composition: "",
+      });
       setSelectedImageFile(null);
       setImagePreview(null);
       await load();
@@ -321,6 +344,50 @@ export default function Admin() {
           </label>
 
           <label style={{ display: "block", gridColumn: "1 / -1" }}>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Caractéristiques</div>
+            <textarea
+              value={form.characteristics}
+              onChange={(e) => setForm(f => ({ ...f, characteristics: e.target.value }))}
+              rows={3}
+              style={{ ...fieldStyle, resize: "vertical" }}
+              placeholder="Matériau, dimensions, poids, etc."
+            />
+          </label>
+
+          <label style={{ display: "block", gridColumn: "1 / -1" }}>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Conseil d'utilisation</div>
+            <textarea
+              value={form.usage_advice}
+              onChange={(e) => setForm(f => ({ ...f, usage_advice: e.target.value }))}
+              rows={3}
+              style={{ ...fieldStyle, resize: "vertical" }}
+              placeholder="Instructions d'utilisation, conseils d'entretien, etc."
+            />
+          </label>
+
+          <label style={{ display: "block", gridColumn: "1 / -1" }}>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Engagement</div>
+            <textarea
+              value={form.commitment}
+              onChange={(e) => setForm(f => ({ ...f, commitment: e.target.value }))}
+              rows={3}
+              style={{ ...fieldStyle, resize: "vertical" }}
+              placeholder="Garantie, politique de retour, engagement qualité, etc."
+            />
+          </label>
+
+          <label style={{ display: "block", gridColumn: "1 / -1" }}>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Composition</div>
+            <textarea
+              value={form.composition}
+              onChange={(e) => setForm(f => ({ ...f, composition: e.target.value }))}
+              rows={3}
+              style={{ ...fieldStyle, resize: "vertical" }}
+              placeholder="Liste des ingrédients, matériaux, etc."
+            />
+          </label>
+
+          <label style={{ display: "block", gridColumn: "1 / -1" }}>
             <div style={{ fontWeight: 600, marginBottom: 4 }}>Image du produit</div>
             <input
               type="file"
@@ -370,7 +437,18 @@ export default function Admin() {
               type="button" 
               style={secondaryBtn} 
               onClick={() => {
-                setForm({ name:"", description:"", price_eur:"", stock_qty:"", active:true, image_url:"" });
+                setForm({ 
+                  name:"", 
+                  description:"", 
+                  price_eur:"", 
+                  stock_qty:"", 
+                  active:true, 
+                  image_url:"",
+                  characteristics: "",
+                  usage_advice: "",
+                  commitment: "",
+                  composition: "",
+                });
                 setSelectedImageFile(null);
                 setImagePreview(null);
               }}
@@ -413,7 +491,21 @@ export default function Admin() {
                 </div>
 
                 <div style={{ padding: 12, display: "grid", gap: 8 }}>
-                  <div style={{ color: "#64748b", fontSize: 14 }}>{p.description || "—"}</div>
+                  <div style={{ color: "#64748b", fontSize: 14 }}>
+                    <div><strong>Description:</strong> {p.description || "—"}</div>
+                    <div style={{ marginTop: 6 }}>
+                      <strong>Caractéristiques:</strong> {p.characteristics || "—"}
+                    </div>
+                    <div style={{ marginTop: 6 }}>
+                      <strong>Conseil d'utilisation:</strong> {p.usage_advice || "—"}
+                    </div>
+                    <div style={{ marginTop: 6 }}>
+                      <strong>Engagement:</strong> {p.commitment || "—"}
+                    </div>
+                    <div style={{ marginTop: 6 }}>
+                      <strong>Composition:</strong> {p.composition || "—"}
+                    </div>
+                  </div>
 
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                     <small>Stock:</small>

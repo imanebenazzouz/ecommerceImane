@@ -100,6 +100,10 @@ class Product(Base):
     
     name = Column(String(255), nullable=False)  # Nom du produit (ex: "iPhone 15 Pro")
     description = Column(Text)                  # Description complète (peut être vide)
+    characteristics = Column(Text, nullable=True)  # Caractéristiques du produit
+    usage_advice = Column(Text, nullable=True)     # Conseil d'utilisation
+    commitment = Column(Text, nullable=True)        # Engagement (garantie, retour, etc.)
+    composition = Column(Text, nullable=True)       # Composition du produit
     
     # Prix en CENTIMES (pas en euros !)
     # Pourquoi ? Évite les problèmes d'arrondis avec les décimales

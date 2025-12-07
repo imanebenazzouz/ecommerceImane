@@ -648,6 +648,10 @@ class ProductOut(BaseModel):
     stock_qty: int
     active: bool
     image_url: Optional[str] = None
+    characteristics: Optional[str] = None
+    usage_advice: Optional[str] = None
+    commitment: Optional[str] = None
+    composition: Optional[str] = None
 
 class CartItemOut(BaseModel):
     product_id: str
@@ -727,6 +731,10 @@ class ProductCreateIn(BaseModel):
     stock_qty: int = Field(ge=0)
     active: bool = True
     image_url: Optional[str] = None
+    characteristics: Optional[str] = None
+    usage_advice: Optional[str] = None
+    commitment: Optional[str] = None
+    composition: Optional[str] = None
 
 class ProductUpdateIn(BaseModel):
     name: Optional[str] = None
@@ -735,6 +743,10 @@ class ProductUpdateIn(BaseModel):
     stock_qty: Optional[int] = Field(default=None, ge=0)
     active: Optional[bool] = None
     image_url: Optional[str] = None
+    characteristics: Optional[str] = None
+    usage_advice: Optional[str] = None
+    commitment: Optional[str] = None
+    composition: Optional[str] = None
 
 class RefundIn(BaseModel):
     amount_cents: Optional[int] = Field(default=None, ge=0)
@@ -1110,7 +1122,11 @@ def list_products(db: Session = Depends(get_db)):
                 price_cents=int(getattr(p, 'price_cents', 0)),
                 stock_qty=int(getattr(p, 'stock_qty', 0)),
                 active=bool(getattr(p, 'active', True)),
-                image_url=getattr(p, 'image_url', None) or None
+                image_url=getattr(p, 'image_url', None) or None,
+                characteristics=getattr(p, 'characteristics', None) or None,
+                usage_advice=getattr(p, 'usage_advice', None) or None,
+                commitment=getattr(p, 'commitment', None) or None,
+                composition=getattr(p, 'composition', None) or None
             ))
         return out
     except Exception as e:
@@ -1133,7 +1149,11 @@ def get_product(product_id: str, db: Session = Depends(get_db)):
             price_cents=cast(int, product.price_cents),
             stock_qty=cast(int, product.stock_qty),
             active=cast(bool, product.active),
-            image_url=cast(str, product.image_url) if product.image_url else None
+            image_url=cast(str, product.image_url) if product.image_url else None,
+            characteristics=cast(str, product.characteristics) if product.characteristics else None,
+            usage_advice=cast(str, product.usage_advice) if product.usage_advice else None,
+            commitment=cast(str, product.commitment) if product.commitment else None,
+            composition=cast(str, product.composition) if product.composition else None
         )
     except HTTPException:
         raise
@@ -1501,11 +1521,15 @@ def admin_list_products(u = Depends(require_admin), db: Session = Depends(get_db
         return [ProductOut(
             id=str(p.id),
             name=cast(str, p.name),
-            description=cast(str, p.description),
+            description=cast(str, p.description) if p.description else "",
             price_cents=cast(int, p.price_cents),
             stock_qty=cast(int, p.stock_qty),
             active=cast(bool, p.active),
-            image_url=cast(str, p.image_url) if p.image_url else None
+            image_url=cast(str, p.image_url) if p.image_url else None,
+            characteristics=cast(str, p.characteristics) if p.characteristics else None,
+            usage_advice=cast(str, p.usage_advice) if p.usage_advice else None,
+            commitment=cast(str, p.commitment) if p.commitment else None,
+            composition=cast(str, p.composition) if p.composition else None
         ) for p in products]
     except Exception as e:
         raise HTTPException(500, f"Erreur lors du chargement des produits: {str(e)}")
@@ -1528,9 +1552,15 @@ def admin_create_product(inp: ProductCreateIn, u = Depends(require_admin), db: S
             "price_cents": inp.price_cents,
             "stock_qty": inp.stock_qty,
             "active": inp.active,
-            "image_url": inp.image_url or None
+            "image_url": inp.image_url or None,
+            "characteristics": inp.characteristics or None,
+            "usage_advice": inp.usage_advice or None,
+            "commitment": inp.commitment or None,
+            "composition": inp.composition or None
         }
+        print(f"DEBUG: Données produit à créer: {product_data}")
         product = product_repo.create(product_data)
+        print(f"DEBUG: Produit créé: characteristics={product.characteristics}, usage_advice={product.usage_advice}, commitment={product.commitment}, composition={product.composition}")
         return ProductOut(
             id=str(product.id),
             name=cast(str, product.name),
@@ -1538,7 +1568,11 @@ def admin_create_product(inp: ProductCreateIn, u = Depends(require_admin), db: S
             price_cents=cast(int, product.price_cents),
             stock_qty=cast(int, product.stock_qty),
             active=cast(bool, product.active),
-            image_url=cast(str, product.image_url) if product.image_url else None
+            image_url=cast(str, product.image_url) if product.image_url else None,
+            characteristics=cast(str, product.characteristics) if product.characteristics else None,
+            usage_advice=cast(str, product.usage_advice) if product.usage_advice else None,
+            commitment=cast(str, product.commitment) if product.commitment else None,
+            composition=cast(str, product.composition) if product.composition else None
         )
     except HTTPException:
         raise
@@ -1569,6 +1603,14 @@ def admin_update_product(product_id: str, inp: ProductUpdateIn, u = Depends(requ
             product.price_cents = inp.price_cents  # type: ignore
         if inp.stock_qty is not None:
             product.stock_qty = inp.stock_qty  # type: ignore
+        if inp.characteristics is not None:
+            product.characteristics = inp.characteristics  # type: ignore
+        if inp.usage_advice is not None:
+            product.usage_advice = inp.usage_advice  # type: ignore
+        if inp.commitment is not None:
+            product.commitment = inp.commitment  # type: ignore
+        if inp.composition is not None:
+            product.composition = inp.composition  # type: ignore
         # Vérifier si le produit passe de actif à inactif
         was_active = product.active
         if inp.active is not None:
@@ -1595,7 +1637,11 @@ def admin_update_product(product_id: str, inp: ProductUpdateIn, u = Depends(requ
             price_cents=cast(int, product.price_cents),
             stock_qty=cast(int, product.stock_qty),
             active=cast(bool, product.active),
-            image_url=cast(str, product.image_url) if product.image_url else None
+            image_url=cast(str, product.image_url) if product.image_url else None,
+            characteristics=cast(str, product.characteristics) if product.characteristics else None,
+            usage_advice=cast(str, product.usage_advice) if product.usage_advice else None,
+            commitment=cast(str, product.commitment) if product.commitment else None,
+            composition=cast(str, product.composition) if product.composition else None
         )
     except HTTPException:
         raise
