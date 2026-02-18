@@ -1,0 +1,141 @@
+/* Styles pour le composant d'autocomplétion d'adresse */
+
+.address-autocomplete {
+  position: relative;
+  margin-bottom: var(--space-4, 16px);
+}
+
+.address-autocomplete__search {
+  margin-bottom: var(--space-2, 8px);
+}
+
+.address-autocomplete__input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.address-autocomplete__input {
+  width: 100%;
+  padding: 10px 40px 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.address-autocomplete__input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.address-autocomplete__input:disabled {
+  background-color: #f3f4f6;
+  cursor: not-allowed;
+}
+
+.address-autocomplete__input--valid {
+  border-color: #10b981;
+  background-color: #f0fdf4;
+}
+
+.address-autocomplete__input--invalid {
+  border-color: #dc2626;
+  background-color: #fef2f2;
+}
+
+.address-autocomplete__validated {
+  position: absolute;
+  right: 12px;
+  font-size: 16px;
+  pointer-events: none;
+  color: #10b981;
+}
+
+.address-autocomplete__loader {
+  position: absolute;
+  right: 12px;
+  font-size: 16px;
+  pointer-events: none;
+}
+
+.address-autocomplete__suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  margin: 4px 0 0 0;
+  padding: 0;
+  list-style: none;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.address-autocomplete__suggestion {
+  padding: 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f3f4f6;
+  transition: background-color 0.15s;
+}
+
+.address-autocomplete__suggestion:last-child {
+  border-bottom: none;
+}
+
+.address-autocomplete__suggestion:hover,
+.address-autocomplete__suggestion--selected {
+  background-color: #f0f9ff;
+}
+
+.address-autocomplete__suggestion-label {
+  font-weight: 500;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.address-autocomplete__suggestion-city {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 2px;
+}
+
+.address-autocomplete__suggestion-score {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+.address-autocomplete__no-results {
+  padding: 12px;
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  border-radius: 6px;
+  color: #92400e;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+/* Scrollbar personnalisée pour la liste des suggestions */
+.address-autocomplete__suggestions::-webkit-scrollbar {
+  width: 8px;
+}
+
+.address-autocomplete__suggestions::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.address-autocomplete__suggestions::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.address-autocomplete__suggestions::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+

@@ -65,8 +65,16 @@ export default function Catalog() {
         setErr("");
         
         // Appel API : récupérer la liste de tous les produits depuis le backend
-        // GET /products → retourne un tableau de produits
+        // GET /products → doit retourner un tableau de produits
         const data = await api.listProducts();
+
+        // Vérifier que la réponse est bien un tableau
+        if (!Array.isArray(data)) {
+          console.error("Réponse inattendue pour /products :", data);
+          setErr("Erreur de chargement du catalogue (format de réponse inattendu).");
+          setProducts([]);
+          return;
+        }
         
         // Mettre à jour l'état avec les produits récupérés
         // Cela déclenche un re-render (re-affichage) du composant

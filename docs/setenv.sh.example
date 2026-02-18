@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Exemple de configuration des variables d'environnement pour Stripe.
+# Copiez ce fichier en setenv.sh, remplissez les valeurs, puis :
+#   source docs/setenv.sh   # ou . docs/setenv.sh
+# Ne commitez jamais setenv.sh (ajoutez-le à .gitignore si vous l'utilisez).
+
+# Clé secrète Stripe (obligatoire pour Stripe Checkout et paiements réels)
+# Récupérez-la sur https://dashboard.stripe.com/test/apikeys
+export STRIPE_SECRET_KEY="sk_test_REPLACE_BY_YOUR_KEY"
+
+# Clé publique (optionnelle pour l'instant)
+export STRIPE_PUBLISHABLE_KEY="pk_test_REPLACE_BY_YOUR_KEY"
+
+# URL du frontend (pour les redirections après paiement Stripe Checkout)
+export FRONTEND_URL="http://localhost:5173"
+
+# Optionnel : false pour appels API Stripe réels, true pour simulation locale
+# export STRIPE_USE_SIMULATION="true"

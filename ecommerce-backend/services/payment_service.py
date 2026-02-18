@@ -35,6 +35,103 @@ else:
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 
 
+def create_checkout_session(
+    order_id: str,
+    amount_cents: int,
+    order_label: str,
+    success_url: str,
+    cancel_url: str,
+    customer_email: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Crée une session Stripe Checkout (redirection vers la page de paiement Stripe).
+    Les paiements apparaissent dans le Dashboard Stripe.
+    Returns:
+        {"url": "https://checkout.stripe.com/...", "session_id": "cs_..."}
+        ou {"error": "missing_key"|"stripe_api", "message": "..."}
+    """
+    if not stripe.api_key or stripe.api_key == "":
+        return {"error": "missing_key", "message": "STRIPE_SECRET_KEY non configurée."}
+    if not success_url or not cancel_url:
+        return {"error": "session_failed", "message": "URLs de redirection manquantes."}
+    try:
+        kwargs = {
+            "mode": "payment",
+            "payment_method_types": ["card"],
+            "line_items": [
+                {
+                    "price_data": {
+                        "currency": "eur",
+                        "unit_amount": amount_cents,
+                        "product_data": {
+                            "name": order_label,
+                            "description": f"Commande #{order_id[:8]}",
+                        },
+                    },
+                    "quantity": 1,
+                }
+            ],
+            "success_url": success_url,
+            "cancel_url": cancel_url,
+            "metadata": {"order_id": order_id},
+            "client_reference_id": order_id,
+        }
+        if customer_email:
+            kwargs["customer_email"] = customer_email
+        session = stripe.checkout.Session.create(**kwargs)
+        return {
+            "url": session.url,
+            "session_id": session.id,
+        }
+    except stripe.error.StripeError as e:
+        return {"error": "stripe_api", "message": str(e)}
+    except Exception as e:
+        return {"error": "stripe_api", "message": str(e)}
+
+
+def retrieve_checkout_session(session_id: str) -> Dict[str, Any]:
+    """
+    Récupère une session Checkout Stripe et vérifie le paiement.
+    Returns:
+        {"success": True, "order_id": "...", "payment_intent": "...", "amount_total": ...}
+        ou {"success": False, "error": "..."}
+    """
+    if not stripe.api_key or stripe.api_key == "":
+        return {"success": False, "error": "missing_key"}
+    if not session_id:
+        return {"success": False, "error": "invalid_session"}
+    try:
+        session = stripe.checkout.Session.retrieve(
+            session_id,
+            expand=["payment_intent", "payment_intent.latest_charge"],
+        )
+        if session.payment_status != "paid":
+            return {"success": False, "error": "payment_not_completed"}
+        order_id = session.metadata.get("order_id") if session.metadata else None
+        if not order_id:
+            return {"success": False, "error": "invalid_course"}
+        amount_total = session.amount_total or 0
+        payment_intent_id = None
+        charge_id = None
+        if getattr(session, "payment_intent", None):
+            pi = session.payment_intent
+            payment_intent_id = pi.id if hasattr(pi, "id") else None
+            if hasattr(pi, "latest_charge") and pi.latest_charge:
+                ch = pi.latest_charge
+                charge_id = ch.id if hasattr(ch, "id") else (ch if isinstance(ch, str) else None)
+        return {
+            "success": True,
+            "order_id": order_id,
+            "payment_intent": payment_intent_id,
+            "charge_id": charge_id,
+            "amount_total": amount_total,
+        }
+    except stripe.error.StripeError as e:
+        return {"success": False, "error": "stripe_api", "message": str(e)}
+    except Exception as e:
+        return {"success": False, "error": "stripe_api", "message": str(e)}
+
+
 class PaymentGateway:
     """Gateway de paiement utilisant Stripe Test."""
     

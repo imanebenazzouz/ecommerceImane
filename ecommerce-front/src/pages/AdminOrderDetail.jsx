@@ -10,6 +10,8 @@ export default function AdminOrderDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
+  const [refundPending, setRefundPending] = useState(false);
+  const [refundRejectPending, setRefundRejectPending] = useState(false);
 
   // Vérification admin
   const role = (typeof localStorage !== "undefined" && localStorage.getItem("role")) || "user";
@@ -135,6 +137,42 @@ export default function AdminOrderDetail() {
         console.error("Erreur annulation:", err);
         setError(err.message || "Erreur lors de l'annulation");
       }
+    }
+  };
+
+  const handleRefund = async () => {
+    if (!confirm("Valider le remboursement pour cette commande ?\n\nLe remboursement sera effectué côté Stripe et la commande passera au statut « Remboursée ».")) return;
+    try {
+      setError("");
+      setRefundPending(true);
+      await api.adminRefundOrder(orderId, {});
+      setMsg("Remboursement validé et effectué (Stripe + base).");
+      const updatedOrder = await api.adminGetOrder(orderId);
+      setOrder(updatedOrder);
+    } catch (err) {
+      console.error("Erreur remboursement:", err);
+      setError(err.message || "Erreur lors du remboursement");
+    } finally {
+      setRefundPending(false);
+    }
+  };
+
+  const handleRefundReject = async () => {
+    if (!confirm("Refuser la demande de remboursement ?\n\nLe client sera notifié dans le fil support (vous pourrez ajouter un motif après validation).")) return;
+    const reason = window.prompt("Motif du refus (optionnel) :");
+    const body = reason != null && reason.trim() ? { reason: reason.trim() } : {};
+    try {
+      setError("");
+      setRefundRejectPending(true);
+      await api.adminRefundReject(orderId, body);
+      setMsg("Demande de remboursement refusée. Le client a été notifié.");
+      const updatedOrder = await api.adminGetOrder(orderId);
+      setOrder(updatedOrder);
+    } catch (err) {
+      console.error("Erreur refus remboursement:", err);
+      setError(err.message || "Erreur lors du refus");
+    } finally {
+      setRefundRejectPending(false);
     }
   };
 
@@ -355,6 +393,42 @@ export default function AdminOrderDetail() {
                 >
                   Marquer comme livrée
                 </button>
+              )}
+
+              {/* Valider ou refuser le remboursement */}
+              {["PAYEE", "EXPEDIEE", "LIVREE"].includes(order.status) && (
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+                  <button
+                    onClick={handleRefund}
+                    disabled={refundPending || refundRejectPending}
+                    style={{
+                      padding: "12px 16px",
+                      backgroundColor: refundPending ? "#9ca3af" : "#8b5cf6",
+                      color: "white",
+                      border: "none",
+                      borderRadius: 8,
+                      cursor: refundPending ? "wait" : "pointer",
+                      fontWeight: 600
+                    }}
+                  >
+                    {refundPending ? "Remboursement en cours..." : "Valider le remboursement"}
+                  </button>
+                  <button
+                    onClick={handleRefundReject}
+                    disabled={refundPending || refundRejectPending}
+                    style={{
+                      padding: "12px 16px",
+                      backgroundColor: refundRejectPending ? "#9ca3af" : "transparent",
+                      color: "#dc2626",
+                      border: "2px solid #fecaca",
+                      borderRadius: 8,
+                      cursor: refundRejectPending ? "wait" : "pointer",
+                      fontWeight: 600
+                    }}
+                  >
+                    {refundRejectPending ? "Refus en cours..." : "Refuser le remboursement"}
+                  </button>
+                </div>
               )}
 
               {["CREE", "VALIDEE", "PAYEE"].includes(order.status) && (

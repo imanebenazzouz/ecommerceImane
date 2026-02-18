@@ -7,10 +7,17 @@
 //
 /**
  * Base URL of the backend API. Overridable via Vite env `VITE_API_BASE`.
- * Example: https://api.example.com
+ * Si non défini, utilise le même host que la page (évite localhost vs 127.0.0.1).
  * @type {string}
  */
-const API = import.meta.env.VITE_API_BASE ?? "http://localhost:8000";
+function getApiBase() {
+  if (import.meta.env.VITE_API_BASE) return import.meta.env.VITE_API_BASE;
+  if (typeof window !== "undefined" && window.location?.hostname) {
+    return `${window.location.protocol}//${window.location.hostname}:8000`;
+  }
+  return "http://localhost:8000";
+}
+const API = getApiBase();
 
 // --- Token helpers ---
 /**
@@ -48,55 +55,74 @@ async function request(path, init = {}) {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 
-  const res = await fetch(API + path, {
-    credentials: "include", // ok même si tu n'utilises pas de cookies
-    ...init,
-    headers,
-  });
+  const url = API + path;
 
-  // Try to read response (JSON first, fallback to plain text)
-  let payload = null;
-  const text = await res.text();
-  if (text) {
-    try { payload = JSON.parse(text); }
-    catch { payload = text; }
-  }
+  try {
+    const res = await fetch(url, {
+      credentials: "include", // ok même si tu n'utilises pas de cookies
+      ...init,
+      headers,
+    });
 
-  if (!res.ok) {
-    let msg;
-    if (payload) {
-      if (typeof payload === "string") {
-        msg = payload;
-      } else if (payload.detail) {
-        // FastAPI retourne parfois detail comme array pour les erreurs de validation
-        if (Array.isArray(payload.detail)) {
-          // Extraire les messages d'erreur du tableau
-          msg = payload.detail.map(err => {
-            if (typeof err === "string") return err;
-            if (err.msg) return err.msg;
-            return JSON.stringify(err);
-          }).join(", ");
-        } else {
-          msg = payload.detail;
-        }
-      } else if (payload.message) {
-        msg = payload.message;
-      } else if (payload.error) {
-        msg = payload.error;
-      } else {
-        msg = `Erreur ${res.status}: ${JSON.stringify(payload)}`;
-      }
-    } else {
-      msg = `Erreur HTTP ${res.status}`;
+    // Try to read response (JSON first, fallback to plain text)
+    let payload = null;
+    const text = await res.text();
+    if (text) {
+      try { payload = JSON.parse(text); }
+      catch { payload = text; }
     }
-    
-    /** @type {Error & {status?: number, payload?: unknown}} */
-    const err = new Error(msg);
-    err.status = res.status;
-    err.payload = payload;
-    throw err;
+
+    if (!res.ok) {
+      let msg;
+      if (payload) {
+        if (typeof payload === "string") {
+          msg = payload;
+        } else if (payload.detail) {
+          // FastAPI retourne parfois detail comme array pour les erreurs de validation
+          if (Array.isArray(payload.detail)) {
+            // Extraire les messages d'erreur du tableau
+            msg = payload.detail.map(err => {
+              if (typeof err === "string") return err;
+              if (err.msg) return err.msg;
+              return JSON.stringify(err);
+            }).join(", ");
+          } else {
+            msg = payload.detail;
+          }
+        } else if (payload.message) {
+          msg = payload.message;
+        } else if (payload.error) {
+          msg = payload.error;
+        } else {
+          msg = `Erreur ${res.status}: ${JSON.stringify(payload)}`;
+        }
+      } else {
+        msg = `Erreur HTTP ${res.status}`;
+      }
+      
+      /** @type {Error & {status?: number, payload?: unknown}} */
+      const err = new Error(msg);
+      err.status = res.status;
+      err.payload = payload;
+      throw err;
+    }
+    return payload;
+  } catch (error) {
+    // Gérer les erreurs réseau (Failed to fetch, CORS, etc.)
+    if (error instanceof TypeError && error.message.includes("fetch")) {
+      // Erreur réseau : serveur inaccessible, CORS bloqué, etc.
+      const networkError = new Error(
+        `Impossible de joindre le serveur API à ${url}. ` +
+        `Vérifiez que le backend est démarré sur ${API}. ` +
+        `Erreur réseau : ${error.message}`
+      );
+      networkError.status = 0;
+      networkError.originalError = error;
+      throw networkError;
+    }
+    // Re-lancer les autres erreurs (erreurs HTTP, etc.)
+    throw error;
   }
-  return payload;
 }
 
 /* =========================
@@ -417,6 +443,24 @@ async function processPayment({ orderId, cardNumber, expMonth, expYear, cvc, pos
   });
 }
 
+/**
+ * Create a Stripe Checkout session for an order (redirect to Stripe payment page).
+ * @param {string} orderId
+ * @returns {Promise<{ url: string, session_id?: string }>}
+ */
+async function createCheckoutSession(orderId) {
+  return request(`/orders/${orderId}/create-checkout-session`, { method: "POST" });
+}
+
+/**
+ * Verify a Stripe Checkout session after payment and complete the order.
+ * @param {string} sessionId
+ * @returns {Promise<{ success: boolean, order_id: string, already_completed?: boolean }>}
+ */
+async function stripeVerifySession(sessionId) {
+  return request(`/orders/stripe-verify-session?session_id=${encodeURIComponent(sessionId)}`);
+}
+
 /* =========================
    ADMIN — Produits
    ========================= */
@@ -582,6 +626,15 @@ async function adminRefundOrder(order_id, body = {}) {
   return request(`/admin/orders/${order_id}/refund`, { method: "POST", body: JSON.stringify(body) });
 }
 
+/**
+ * Refuse la demande de remboursement pour une commande (admin).
+ * @param {string} order_id
+ * @param {{ reason?: string }} body - motif optionnel
+ */
+async function adminRefundReject(order_id, body = {}) {
+  return request(`/admin/orders/${order_id}/refund-reject`, { method: "POST", body: JSON.stringify(body) });
+}
+
 /* =========================
    SUPPORT CLIENT
    ========================= */
@@ -724,6 +777,8 @@ export const api = {
   addToCart, removeFromCart, clearCart,
   checkout,
   payOrder, payByCard, processPayment,
+  createCheckoutSession,
+  stripeVerifySession,
   myOrders, getOrders, getOrder, cancelOrder,
   getInvoice, downloadInvoicePDF,
 
@@ -743,7 +798,8 @@ export const api = {
   adminShipOrder,
   adminMarkDelivered,
   adminRefundOrder,
-  
+  adminRefundReject,
+
   // Suivi de livraison
   getOrderTracking,
 

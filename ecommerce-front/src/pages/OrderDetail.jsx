@@ -12,6 +12,8 @@ export default function OrderDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [downloadingInvoice, setDownloadingInvoice] = useState(false);
+  const [refundRequestPending, setRefundRequestPending] = useState(false);
+  const [refundRequestSent, setRefundRequestSent] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated()) {
@@ -390,6 +392,52 @@ export default function OrderDetail() {
                   </>
                 )}
               </button>
+            )}
+
+            {/* Demander un remboursement : envoie une demande au support, l'admin validera le remboursement Stripe */}
+            {["PAYEE", "EXPEDIEE", "LIVREE"].includes(order.status) && !refundRequestSent && (
+              <button
+                onClick={async () => {
+                  if (!confirm("Voulez-vous demander un remboursement pour cette commande ?\n\nVotre demande sera traitée par notre équipe. Vous serez notifié une fois le remboursement validé.")) return;
+                  setRefundRequestPending(true);
+                  try {
+                    await api.createSupportThread({
+                      subject: `Demande de remboursement - Commande #${order.id.slice(-8)}`,
+                      order_id: order.id
+                    });
+                    setRefundRequestSent(true);
+                  } catch (err) {
+                    alert("Erreur lors de l'envoi de la demande : " + (err.message || "Erreur inconnue"));
+                  } finally {
+                    setRefundRequestPending(false);
+                  }
+                }}
+                disabled={refundRequestPending}
+                style={{
+                  padding: "12px 16px",
+                  backgroundColor: refundRequestPending ? "#e5e7eb" : "#fef3c7",
+                  color: "#92400e",
+                  border: "1px solid #f59e0b",
+                  borderRadius: 8,
+                  cursor: refundRequestPending ? "wait" : "pointer",
+                  fontWeight: 600
+                }}
+              >
+                {refundRequestPending ? "Envoi en cours..." : "Demander un remboursement"}
+              </button>
+            )}
+            {refundRequestSent && (
+              <div style={{
+                padding: "12px 16px",
+                backgroundColor: "#ecfdf5",
+                color: "#065f46",
+                border: "1px solid #10b981",
+                borderRadius: 8,
+                fontSize: 14,
+                fontWeight: 600
+              }}>
+                Demande de remboursement envoyée. Notre équipe traitera votre demande sous peu.
+              </div>
             )}
 
             {["CREE", "VALIDEE", "PAYEE"].includes(order.status) && (

@@ -12,6 +12,7 @@ import {
   validateStreetName,
   buildFullAddress
 } from "../utils/validations";
+import AddressAutocomplete from "../components/AddressAutocomplete";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ export default function Register() {
     street_name:"",
     postal_code:""
   });
+  const [addressValidated, setAddressValidated] = useState(false);
   const [errors, setErrors] = useState({});
   const [err, setErr] = useState(""); 
   const [ok, setOk] = useState("");
@@ -61,8 +63,16 @@ export default function Register() {
     }
     
     // Validation champs obligatoires
-    if (!form.first_name || !form.last_name || !form.street_number || !form.street_name || !form.postal_code) {
-      setErr("Tous les champs sont obligatoires");
+    if (!form.first_name || !form.last_name) {
+      setErr("Le prénom et le nom sont obligatoires");
+      setPending(false);
+      return;
+    }
+    
+    // Validation adresse : doit être sélectionnée depuis l'API
+    if (!addressValidated || !form.street_number || !form.street_name || !form.postal_code) {
+      setErr("Vous devez sélectionner une adresse depuis la recherche ci-dessus");
+      setErrors({ ...errors, address: "Adresse requise - sélectionnez depuis la recherche" });
       setPending(false);
       return;
     }
@@ -258,81 +268,50 @@ export default function Register() {
 
               <div className="form-group">
                 <label className="form-label" style={{ marginBottom: "var(--space-2)" }}>
-                  Adresse
+                  Adresse <span style={{ color: "#dc2626" }}>*</span>
                 </label>
-                <div style={{ display: "grid", gridTemplateColumns: "100px 1fr 120px", gap: "var(--space-3)", marginBottom: "var(--space-2)" }}>
-                  <div>
-                    <label className="form-label" htmlFor="street_number" style={{ fontSize: "var(--text-sm)" }}>
-                      Numéro
-                    </label>
-                    <input
-                      id="street_number"
-                      name="street_number"
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      required
-                      value={form.street_number}
-                      onChange={onChange}
-                      onKeyPress={(e) => {
-                        if (!/[0-9]/.test(e.key)) {
-                          e.preventDefault();
-                        }
-                      }}
-                      placeholder="12"
-                      autoComplete="off"
-                      maxLength={10}
-                      className={`form-input ${errors.street_number ? 'form-input--error' : ''}`}
-                    />
+                
+                {/* Autocomplétion d'adresse avec API gouvernementale - OBLIGATOIRE */}
+                <AddressAutocomplete
+                  streetNumber={form.street_number}
+                  streetName={form.street_name}
+                  postalCode={form.postal_code}
+                  onSelect={(addressData) => {
+                    setForm({
+                      ...form,
+                      street_number: addressData.streetNumber || "",
+                      street_name: addressData.streetName || "",
+                      postal_code: addressData.postalCode || "",
+                    });
+                    setAddressValidated(true);
+                    // Effacer les erreurs
+                    setErrors({ ...errors, address: null });
+                  }}
+                  onChange={onChange}
+                  errors={errors}
+                  required={true}
+                  isValidated={addressValidated}
+                />
+                
+                {errors.address && (
+                  <small style={{ color: "#dc2626", fontSize: 12, display: "block", marginTop: 4 }}>
+                    {errors.address}
+                  </small>
+                )}
+                
+                {addressValidated && (
+                  <div style={{ 
+                    marginTop: 8, 
+                    padding: 8, 
+                    backgroundColor: "#f0fdf4", 
+                    border: "1px solid #10b981", 
+                    borderRadius: 6,
+                    fontSize: 13,
+                    color: "#065f46"
+                  }}>
+                    ✅ Adresse validée : {form.street_number} {form.street_name}, {form.postal_code}
                   </div>
-                  <div>
-                    <label className="form-label" htmlFor="street_name" style={{ fontSize: "var(--text-sm)" }}>
-                      Nom de rue
-                    </label>
-                    <input
-                      id="street_name"
-                      name="street_name"
-                      type="text"
-                      required
-                      value={form.street_name}
-                      onChange={onChange}
-                      placeholder="Rue de la Paix"
-                      autoComplete="street-address"
-                      maxLength={100}
-                      className={`form-input ${errors.street_name ? 'form-input--error' : ''}`}
-                    />
-                  </div>
-                  <div>
-                    <label className="form-label" htmlFor="postal_code" style={{ fontSize: "var(--text-sm)" }}>
-                      Code postal
-                    </label>
-                    <input
-                      id="postal_code"
-                      name="postal_code"
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      required
-                      value={form.postal_code}
-                      onChange={onChange}
-                      onKeyPress={(e) => {
-                        if (!/[0-9]/.test(e.key)) {
-                          e.preventDefault();
-                        }
-                      }}
-                      placeholder="75001"
-                      autoComplete="postal-code"
-                      maxLength={5}
-                      className={`form-input ${errors.postal_code ? 'form-input--error' : ''}`}
-                    />
-                  </div>
-                </div>
-                {errors.street_number && <small style={{ color: "#dc2626", fontSize: 12, display: "block", marginBottom: 4 }}>{errors.street_number}</small>}
-                {errors.street_name && <small style={{ color: "#dc2626", fontSize: 12, display: "block", marginBottom: 4 }}>{errors.street_name}</small>}
-                {errors.postal_code && <small style={{ color: "#dc2626", fontSize: 12, display: "block", marginBottom: 4 }}>{errors.postal_code}</small>}
-                <small style={{ fontSize: 12, color: "var(--muted)", display: "block", marginTop: 4 }}>
-                  💡 Exemple : 12 | Rue de la Paix | 75001
-                </small>
+                )}
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--space-4)" }}>
@@ -392,7 +371,7 @@ export default function Register() {
                 <strong>Mot de passe</strong> — minimum 8 caractères avec majuscule, minuscule et chiffre
               </li>
               <li className="auth-note__item">
-                <strong>Adresse</strong> — tous les champs sont obligatoires pour la livraison
+                <strong>Adresse</strong> — vous devez sélectionner une adresse depuis la recherche (API gouvernementale)
               </li>
               <li className="auth-note__item">
                 <strong>Déjà un compte ?</strong> — connectez-vous directement

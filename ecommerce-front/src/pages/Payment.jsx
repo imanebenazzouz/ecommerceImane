@@ -10,12 +10,10 @@ import {
   validateCardNumber,
   validateCVV,
   validateExpiryDate,
-  validatePostalCode,
   validatePhone,
-  validateStreetNumber,
-  validateStreetName,
   sanitizeNumeric,
 } from "../utils/validations";
+import AddressAutocomplete from "../components/AddressAutocomplete";
 import "../styles/global.css";
 
 /**
@@ -36,12 +34,14 @@ export default function Payment() {
   const [phone, setPhone] = useState("");
   const [streetNumber, setStreetNumber] = useState("");
   const [streetName, setStreetName] = useState("");
+  const [addressValidated, setAddressValidated] = useState(false);
 
   // États pour les erreurs de validation
   const [errors, setErrors] = useState({});
 
   // États généraux
   const [pending, setPending] = useState(false);
+  const [stripeRedirecting, setStripeRedirecting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [order, setOrder] = useState(null);
@@ -68,7 +68,7 @@ export default function Payment() {
         setOrder(orderData);
 
         // Vérifier si la commande est déjà payée
-        if (orderData.status === "PAID") {
+        if (orderData.status === "PAYEE" || orderData.status === "PAID") {
           setError("Cette commande est déjà payée.");
           setTimeout(() => {
             navigate("/orders");
@@ -123,28 +123,15 @@ export default function Payment() {
       }
     }
 
-    // Validation du code postal (obligatoire)
-    const postalValidation = validatePostalCode(postalCode);
-    if (!postalValidation.valid) {
-      newErrors.postalCode = postalValidation.error;
-    }
-
     // Validation du téléphone (obligatoire)
     const phoneValidation = validatePhone(phone);
     if (!phoneValidation.valid) {
       newErrors.phone = phoneValidation.error;
     }
 
-    // Validation du numéro de rue (obligatoire)
-    const streetValidation = validateStreetNumber(streetNumber);
-    if (!streetValidation.valid) {
-      newErrors.streetNumber = streetValidation.error;
-    }
-
-    // Validation du nom de rue (obligatoire)
-    const streetNameValidation = validateStreetName(streetName);
-    if (!streetNameValidation.valid) {
-      newErrors.streetName = streetNameValidation.error;
+    // Validation de l'adresse : doit être sélectionnée depuis l'API
+    if (!addressValidated || !streetNumber || !streetName || !postalCode) {
+      newErrors.address = "Vous devez sélectionner une adresse depuis la recherche ci-dessus";
     }
 
     setErrors(newErrors);
@@ -252,23 +239,6 @@ export default function Payment() {
     }
   };
 
-  const handlePostalCodeChange = (e) => {
-    const sanitized = sanitizeNumeric(e.target.value);
-    setPostalCode(sanitized);
-    if (sanitized.length === 5) {
-      const validation = validatePostalCode(sanitized);
-      setErrors(prev => ({ ...prev, postalCode: validation.valid ? null : validation.error }));
-    } else {
-      setErrors(prev => ({ ...prev, postalCode: null }));
-    }
-  };
-
-  const handlePostalCodeKeyPress = (e) => {
-    if (!/[0-9]/.test(e.key)) {
-      e.preventDefault();
-    }
-  };
-
   const handlePhoneChange = (e) => {
     const sanitized = sanitizeNumeric(e.target.value);
     setPhone(sanitized);
@@ -280,32 +250,19 @@ export default function Payment() {
     }
   };
 
-  const handleStreetNumberChange = (e) => {
-    const sanitized = sanitizeNumeric(e.target.value);
-    setStreetNumber(sanitized);
-    if (sanitized) {
-      const validation = validateStreetNumber(sanitized);
-      setErrors(prev => ({ ...prev, streetNumber: validation.valid ? null : validation.error }));
-    } else {
-      setErrors(prev => ({ ...prev, streetNumber: null }));
+  // Handler pour la sélection d'une adresse depuis l'autocomplétion
+  const handleAddressSelect = (addressData) => {
+    if (addressData.streetNumber) {
+      setStreetNumber(addressData.streetNumber);
     }
-  };
-
-  const handleStreetNumberKeyPress = (e) => {
-    if (!/[0-9]/.test(e.key)) {
-      e.preventDefault();
+    if (addressData.streetName) {
+      setStreetName(addressData.streetName);
     }
-  };
-
-  const handleStreetNameChange = (e) => {
-    const value = e.target.value;
-    setStreetName(value);
-    if (value.trim()) {
-      const validation = validateStreetName(value);
-      setErrors(prev => ({ ...prev, streetName: validation.valid ? null : validation.error }));
-    } else {
-      setErrors(prev => ({ ...prev, streetName: null }));
+    if (addressData.postalCode) {
+      setPostalCode(addressData.postalCode);
     }
+    setAddressValidated(true);
+    setErrors(prev => ({ ...prev, address: null }));
   };
 
   // Helper pour afficher les erreurs de champ
@@ -318,8 +275,27 @@ export default function Payment() {
     );
   };
 
+  /** Redirection vers Stripe Checkout (paiement sécurisé, visible dans le Dashboard Stripe). */
+  const handlePayWithStripe = async () => {
+    if (!orderId || !order) return;
+    setStripeRedirecting(true);
+    setError("");
+    try {
+      const { url } = await api.createCheckoutSession(orderId);
+      if (url) {
+        window.location.href = url;
+        return;
+      }
+      setError("Impossible de créer la session de paiement.");
+    } catch (err) {
+      setError(err?.message || "Erreur Stripe. Vérifiez la configuration (STRIPE_SECRET_KEY).");
+    } finally {
+      setStripeRedirecting(false);
+    }
+  };
+
   // Vérifier si le formulaire est valide pour activer/désactiver le bouton
-  const isFormValid = cardNumber && cvv && expMonth && expYear && postalCode && phone && streetNumber && streetName;
+  const isFormValid = cardNumber && cvv && expMonth && expYear && phone && addressValidated && streetNumber && streetName && postalCode;
 
   if (authLoading || loading) {
     return (
@@ -396,6 +372,31 @@ export default function Payment() {
             </p>
           </div>
         )}
+
+        {/* Paiement Stripe Checkout (redirection vers Stripe, visible dans le Dashboard) */}
+        <div style={{ marginBottom: 24 }}>
+          <button
+            type="button"
+            onClick={handlePayWithStripe}
+            disabled={!order || stripeRedirecting || pending}
+            className="btn-rose"
+            style={{
+              width: "100%",
+              padding: "14px 20px",
+              fontSize: 16,
+              fontWeight: 600,
+              opacity: (!order || stripeRedirecting || pending) ? 0.7 : 1,
+              cursor: (!order || stripeRedirecting || pending) ? "not-allowed" : "pointer",
+            }}
+          >
+            {stripeRedirecting ? "Redirection vers Stripe..." : `Payer avec Stripe — ${order ? fmt.format(order.total_cents / 100) : "—"}`}
+          </button>
+          <p style={{ fontSize: 12, color: "#6b7280", marginTop: 8, marginBottom: 0 }}>
+            Vous serez redirigé vers la page de paiement sécurisée Stripe. Les paiements apparaissent dans le Dashboard Stripe.
+          </p>
+        </div>
+
+        <div style={{ marginBottom: 16, textAlign: "center", color: "#9ca3af", fontSize: 14 }}>— ou paiement par carte (simulation) —</div>
 
         <form onSubmit={handleSubmit}>
           {/* Numéro de carte */}
@@ -492,30 +493,6 @@ export default function Payment() {
           <FieldError error={errors.expiry} />
           <FieldError error={errors.cvv} />
 
-          {/* Code postal */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>
-              Code postal <span style={{ color: "#dc2626" }}>*</span>
-            </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={postalCode}
-              onChange={handlePostalCodeChange}
-              onKeyPress={handlePostalCodeKeyPress}
-              placeholder="75001"
-              maxLength={5}
-              autoComplete="postal-code"
-              pattern="[0-9]*"
-              className="form-input"
-              style={{
-                border: `1px solid ${errors.postalCode ? "#dc2626" : "#d1d5db"}`,
-                backgroundColor: errors.postalCode ? "#fef2f2" : "white"
-              }}
-            />
-            <FieldError error={errors.postalCode} />
-          </div>
-
           {/* Téléphone */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>
@@ -539,53 +516,36 @@ export default function Payment() {
             <FieldError error={errors.phone} />
           </div>
 
-          {/* Numéro de rue */}
+          {/* Adresse - Autocomplétion avec API gouvernementale - OBLIGATOIRE */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>
-              Numéro de rue <span style={{ color: "#dc2626" }}>*</span>
+              Adresse de livraison <span style={{ color: "#dc2626" }}>*</span>
             </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={streetNumber}
-              onChange={handleStreetNumberChange}
-              onKeyPress={handleStreetNumberKeyPress}
-              placeholder="123"
-              maxLength={10}
-              autoComplete="off"
-              pattern="[0-9]*"
-              className="form-input"
-              style={{
-                border: `1px solid ${errors.streetNumber ? "#dc2626" : "#d1d5db"}`,
-                backgroundColor: errors.streetNumber ? "#fef2f2" : "white"
-              }}
+            <AddressAutocomplete
+              streetNumber={streetNumber}
+              streetName={streetName}
+              postalCode={postalCode}
+              onSelect={handleAddressSelect}
+              errors={errors}
+              disabled={pending}
+              required={true}
+              isValidated={addressValidated}
             />
-            <FieldError error={errors.streetNumber} />
-          </div>
-
-          {/* Nom de rue */}
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>
-              Nom de rue / Avenue <span style={{ color: "#dc2626" }}>*</span>
-            </label>
-            <input
-              type="text"
-              value={streetName}
-              onChange={handleStreetNameChange}
-              placeholder="Rue de la Paix"
-              maxLength={100}
-              autoComplete="street-address"
-              className="form-input"
-              style={{
-                border: `1px solid ${errors.streetName ? "#dc2626" : "#d1d5db"}`,
-                backgroundColor: errors.streetName ? "#fef2f2" : "white"
-              }}
-            />
-            <FieldError error={errors.streetName} />
-            {!errors.streetName && (
-              <p style={{ fontSize: 12, color: "#6b7280", marginTop: 4, marginBottom: 0 }}>
-                💡 Ex: Rue de la Paix, Avenue des Champs-Élysées
-              </p>
+            {errors.address && (
+              <FieldError error={errors.address} />
+            )}
+            {addressValidated && (
+              <div style={{ 
+                marginTop: 8, 
+                padding: 8, 
+                backgroundColor: "#f0fdf4", 
+                border: "1px solid #10b981", 
+                borderRadius: 6,
+                fontSize: 13,
+                color: "#065f46"
+              }}>
+                ✅ Adresse validée : {streetNumber} {streetName}, {postalCode}
+              </div>
             )}
           </div>
 

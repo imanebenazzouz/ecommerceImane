@@ -553,7 +553,14 @@ class PostgreSQLThreadRepository:
     def get_all(self) -> List[MessageThread]:
         """Récupère tous les fils"""
         return self.db.query(MessageThread).all()
-    
+
+    def get_by_order_id(self, order_id: str) -> List[MessageThread]:
+        """Récupère les fils de discussion liés à une commande."""
+        if not order_id:
+            return []
+        oid = _uuid_or_raw(order_id)
+        return self.db.query(MessageThread).filter(MessageThread.order_id == oid).all()
+
     def add_message(self, thread_id: str, message_data: Dict[str, Any]) -> Message:
         """Ajoute un message à un fil"""
         tid = _uuid_or_raw(thread_id)

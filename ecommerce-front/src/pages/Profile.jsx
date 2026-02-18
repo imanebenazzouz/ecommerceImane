@@ -13,6 +13,7 @@ import {
   buildFullAddress,
   parseAddress
 } from "../utils/validations";
+import AddressAutocomplete from "../components/AddressAutocomplete";
 
 export default function Profile() {
   const [loading, setLoading] = useState(true);
@@ -33,6 +34,7 @@ export default function Profile() {
     street_name: "",
     postal_code: "",
   });
+  const [addressValidated, setAddressValidated] = useState(false);
 
   // Unauthorized UI (no token at all)
   const hasToken = !!localStorage.getItem("token");
@@ -59,6 +61,8 @@ export default function Profile() {
           street_name: parsedAddress.streetName,
           postal_code: parsedAddress.postalCode,
         });
+        // Si l'adresse existe, on considère qu'elle était validée (anciennes données)
+        setAddressValidated(!!me.address);
       } catch (err) {
         if (ignore) return;
         const msg = err?.message || "Erreur lors du chargement du profil";
@@ -112,8 +116,10 @@ export default function Profile() {
       setError("Le nom est requis");
       return;
     }
-    if (!form.street_number?.trim() || !form.street_name?.trim() || !form.postal_code?.trim()) {
-      setError("Tous les champs d'adresse sont requis");
+    // Validation adresse : doit être sélectionnée depuis l'API
+    if (!addressValidated || !form.street_number?.trim() || !form.street_name?.trim() || !form.postal_code?.trim()) {
+      setError("Vous devez sélectionner une adresse depuis la recherche ci-dessus");
+      setErrors({ ...errors, address: "Adresse requise - sélectionnez depuis la recherche" });
       return;
     }
     
@@ -181,6 +187,7 @@ export default function Profile() {
         street_name: parsedAddress.streetName,
         postal_code: parsedAddress.postalCode,
       });
+      setAddressValidated(!!updated.address);
       setSuccess("Profil mis à jour");
       setErrors({});
     } catch (err) {
@@ -305,71 +312,48 @@ export default function Profile() {
                   Adresse <span style={{ color: "#dc2626" }}>*</span>
                 </label>
                 
-                <div style={{ display: "grid", gridTemplateColumns: "100px 1fr 120px", gap: 8, marginBottom: 8 }}>
-                  <label style={{ display: "block" }}>
-                    Numéro
-                    <input
-                      name="street_number"
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={form.street_number}
-                      onChange={onChange}
-                      onKeyPress={(e) => {
-                        // Bloquer tout sauf les chiffres
-                        if (!/[0-9]/.test(e.key)) {
-                          e.preventDefault();
-                        }
-                      }}
-                      style={errors.street_number ? { ...inputStyle, border: "1px solid #dc2626", backgroundColor: "#fef2f2" } : inputStyle}
-                      placeholder="12"
-                      autoComplete="off"
-                      maxLength={10}
-                    />
-                  </label>
-                  <label style={{ display: "block" }}>
-                    Nom de rue / Avenue
-                    <input
-                      name="street_name"
-                      type="text"
-                      value={form.street_name}
-                      onChange={onChange}
-                      style={errors.street_name ? { ...inputStyle, border: "1px solid #dc2626", backgroundColor: "#fef2f2" } : inputStyle}
-                      placeholder="Rue de la Paix"
-                      autoComplete="street-address"
-                      maxLength={100}
-                    />
-                  </label>
-                  <label style={{ display: "block" }}>
-                    Code postal
-                    <input
-                      name="postal_code"
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={form.postal_code}
-                      onChange={onChange}
-                      onKeyPress={(e) => {
-                        // Bloquer tout sauf les chiffres
-                        if (!/[0-9]/.test(e.key)) {
-                          e.preventDefault();
-                        }
-                      }}
-                      style={errors.postal_code ? { ...inputStyle, border: "1px solid #dc2626", backgroundColor: "#fef2f2" } : inputStyle}
-                      placeholder="75001"
-                      autoComplete="postal-code"
-                      maxLength={5}
-                    />
-                  </label>
-                </div>
+                {/* Autocomplétion d'adresse avec API gouvernementale - OBLIGATOIRE */}
+                <AddressAutocomplete
+                  streetNumber={form.street_number}
+                  streetName={form.street_name}
+                  postalCode={form.postal_code}
+                  onSelect={(addressData) => {
+                    setForm({
+                      ...form,
+                      street_number: addressData.streetNumber || "",
+                      street_name: addressData.streetName || "",
+                      postal_code: addressData.postalCode || "",
+                    });
+                    setAddressValidated(true);
+                    // Effacer les erreurs
+                    setErrors({ ...errors, address: null });
+                  }}
+                  onChange={onChange}
+                  errors={errors}
+                  disabled={saving}
+                  required={true}
+                  isValidated={addressValidated}
+                />
                 
-                {errors.street_number && <small style={{ color: "#dc2626", fontSize: 12, display: "block", marginTop: -4, marginBottom: 4 }}>{errors.street_number}</small>}
-                {errors.street_name && <small style={{ color: "#dc2626", fontSize: 12, display: "block", marginTop: -4, marginBottom: 4 }}>{errors.street_name}</small>}
-                {errors.postal_code && <small style={{ color: "#dc2626", fontSize: 12, display: "block", marginTop: -4, marginBottom: 4 }}>{errors.postal_code}</small>}
+                {errors.address && (
+                  <small style={{ color: "#dc2626", fontSize: 12, display: "block", marginTop: 4 }}>
+                    {errors.address}
+                  </small>
+                )}
                 
-                <small id="address-help" style={{ fontSize: 12, color: "#6b7280", display: "block", marginTop: 4 }}>
-                  💡 Exemple : 12 | Rue de la Paix | 75001
-                </small>
+                {addressValidated && (
+                  <div style={{ 
+                    marginTop: 8, 
+                    padding: 8, 
+                    backgroundColor: "#f0fdf4", 
+                    border: "1px solid #10b981", 
+                    borderRadius: 6,
+                    fontSize: 13,
+                    color: "#065f46"
+                  }}>
+                    ✅ Adresse validée : {form.street_number} {form.street_name}, {form.postal_code}
+                  </div>
+                )}
               </div>
 
               <div>

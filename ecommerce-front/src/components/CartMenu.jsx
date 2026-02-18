@@ -235,25 +235,37 @@ export default function CartMenu({ isOpen, onClose }) {
   }
 
   async function checkout() {
-    if (pending) return;
-    
+    // Protection contre les doubles clics - mettre pending IMMÉDIATEMENT
+    if (pending) return; // Si déjà en cours, ignorer le clic
+
     setErr(""); setMsg("");
-    setPending(true);
-    
+    setPending(true); // Mettre pending AVANT toute autre opération
+
     try {
       if (!isAuthenticated()) {
-        setPending(false);
         onClose();
         navigate("/login?next=/cart");
         return;
       }
 
+      // 1) Créer la commande côté backend
       const res = await api.checkout();
-      // Fermer le menu et rediriger vers la page de paiement
-      onClose();
-      navigate(`/payment/${res.order_id}`);
+
+      // 2) Créer une session Stripe Checkout pour cette commande
+      const { url } = await api.createCheckoutSession(res.order_id);
+
+      // 3) Fermer le menu et rediriger vers Stripe
+      if (url) {
+        onClose();
+        window.location.href = url;
+        return;
+      }
+
+      setErr("Impossible de créer la session de paiement Stripe.");
     } catch (e) {
-      setErr(e.message);
+      setErr(e.message || "Erreur lors de la création de la commande ou de la session Stripe.");
+    } finally {
+      // Toujours réinitialiser pending dans finally pour éviter les blocages
       setPending(false);
     }
   };

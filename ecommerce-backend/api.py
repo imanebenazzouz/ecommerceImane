@@ -75,6 +75,26 @@ def _get_repo_class(name: str):
     """Retourne une classe de repository à partir de son nom."""
     return globals().get(name)
 
+# Fonction helper pour convertir un datetime en timestamp de manière fiable
+def _to_timestamp(dt: Optional[datetime]) -> float:
+    """
+    Convertit un datetime en timestamp Unix (secondes depuis 1970-01-01).
+    
+    Gère correctement les datetime timezone-aware et timezone-naive.
+    Retourne 0.0 si dt est None.
+    """
+    if dt is None:
+        return 0.0
+    
+    # Si le datetime est timezone-aware, utiliser directement timestamp()
+    if dt.tzinfo is not None:
+        return dt.timestamp()
+    
+    # Si le datetime est timezone-naive, supposer qu'il est en UTC
+    # et le rendre timezone-aware avant conversion
+    dt_aware = dt.replace(tzinfo=UTC)
+    return dt_aware.timestamp()
+
 # ========== CONFIGURATION CORS ==========
 # CORS = Cross-Origin Resource Sharing
 # Par défaut, un navigateur BLOQUE les requêtes d'un domaine à un autre (sécurité).
@@ -750,6 +770,11 @@ class ProductUpdateIn(BaseModel):
 
 class RefundIn(BaseModel):
     amount_cents: Optional[int] = Field(default=None, ge=0)
+
+
+class RefundRejectIn(BaseModel):
+    """Motif du refus de remboursement (optionnel)."""
+    reason: Optional[str] = Field(default=None, max_length=500)
 
 class PaymentOut(BaseModel):
     id: str
@@ -1476,10 +1501,94 @@ def my_orders(u: User = Depends(current_user), db: Session = Depends(get_db)):
             items=items,
             status=str(getattr(order, 'status', 'CREE')),
             total_cents=sum(item.unit_price_cents * item.quantity for item in items),
-            created_at=(getattr(order, 'created_at').timestamp() if getattr(order, 'created_at', None) else 0.0),
+            created_at=_to_timestamp(getattr(order, 'created_at', None)),
             delivery=delivery_info
         ))
     return out
+
+
+# ====================== STRIPE VERIFY SESSION (doit être avant /orders/{order_id}) ======================
+@app.get("/orders/stripe-verify-session")
+def stripe_verify_session(
+    session_id: str,
+    uid: str = Depends(current_user_id),
+    db: Session = Depends(get_db),
+):
+    """
+    Vérifie une session Checkout Stripe après paiement et finalise la commande.
+    Appelé par le frontend depuis la page /payment/success?session_id=...
+    """
+    from services.payment_service import retrieve_checkout_session
+
+    if not session_id:
+        raise HTTPException(400, "session_id manquant")
+
+    result = retrieve_checkout_session(session_id)
+    if not result.get("success"):
+        err = result.get("error", "stripe_api")
+        msg = result.get("message", "Paiement non complété ou session invalide.")
+        if err == "missing_key":
+            raise HTTPException(500, "Configuration Stripe manquante.")
+        if err == "payment_not_completed":
+            raise HTTPException(402, "Paiement non complété.")
+        if err == "invalid_course" or err == "invalid_session":
+            raise HTTPException(404, "Session ou commande invalide.")
+        raise HTTPException(502, msg)
+
+    order_id = result["order_id"]
+    order_repo = PostgreSQLOrderRepository(db)
+    payment_repo = PostgreSQLPaymentRepository(db)
+    product_repo = PostgreSQLProductRepository(db)
+    cart_repo = PostgreSQLCartRepository(db)
+
+    order = order_repo.get_by_id(order_id)
+    if not order or str(order.user_id) != uid:
+        raise HTTPException(404, "Commande introuvable")
+    if str(order.status) != OrderStatus.CREE.value:
+        return {"success": True, "order_id": order_id, "already_completed": True}
+
+    total_cents = result.get("amount_total") or sum(
+        item.unit_price_cents * item.quantity for item in order.items
+    )
+    charge_id = result.get("charge_id")
+
+    payment_data_dict = {
+        "order_id": order_id,
+        "amount_cents": total_cents,
+        "status": "SUCCEEDED",
+        "payment_method": "CARD",
+        "charge_id": charge_id,
+    }
+    payment = payment_repo.create(payment_data_dict)
+
+    try:
+        threshold = int(os.getenv("LOW_STOCK_HIDE_THRESHOLD", "0"))
+    except Exception:
+        threshold = 0
+    for item in order.items:
+        product = product_repo.get_by_id(str(item.product_id))
+        if product:
+            try:
+                current_stock = int(getattr(product, "stock_qty", 0) or 0)
+            except Exception:
+                current_stock = 0
+            try:
+                qty_to_decrement = int(getattr(item, "quantity", 0) or 0)
+            except Exception:
+                qty_to_decrement = 0
+            new_stock = max(0, current_stock - qty_to_decrement)
+            product.stock_qty = new_stock  # type: ignore
+            if new_stock <= threshold:
+                product.active = False  # type: ignore
+            product_repo.update(product)
+
+    cart_repo.clear_cart(uid)
+    order.status = OrderStatus.PAYEE  # type: ignore
+    order.payment_id = payment.id
+    order_repo.update(order)
+
+    return {"success": True, "order_id": order_id}
+
 
 @app.get("/orders/{order_id}", response_model=OrderOut)
 def get_order(order_id: str, u: User = Depends(current_user), db: Session = Depends(get_db)):
@@ -1508,7 +1617,7 @@ def get_order(order_id: str, u: User = Depends(current_user), db: Session = Depe
         ) for item in order.items],
         status=cast(str, order.status),
         total_cents=sum(item.unit_price_cents * item.quantity for item in order.items),
-        created_at=(order.created_at.timestamp() if getattr(order, 'created_at', None) else 0.0),
+        created_at=_to_timestamp(order.created_at),
         delivery=delivery_info
     )
 
@@ -1785,7 +1894,7 @@ def admin_list_orders(user_id: Optional[str] = None, order_id: Optional[str] = N
             ) for item in order.items],
             status=str(order.status),
             total_cents=sum(item.unit_price_cents * item.quantity for item in order.items),
-            created_at=(order.created_at.timestamp() if getattr(order, 'created_at', None) else 0.0),
+            created_at=_to_timestamp(order.created_at),
             delivery=delivery_info
         ))
     return out
@@ -1816,7 +1925,7 @@ def admin_get_order(order_id: str, u = Depends(require_admin), db: Session = Dep
         ) for item in order.items],
         status=cast(str, order.status),
         total_cents=sum(item.unit_price_cents * item.quantity for item in order.items),
-        created_at=(order.created_at.timestamp() if getattr(order, 'created_at', None) else 0.0),
+        created_at=_to_timestamp(order.created_at),
         delivery=delivery_info
     )
 
@@ -1860,7 +1969,7 @@ def admin_validate_order(order_id: str, u = Depends(require_admin), db: Session 
             ) for item in order.items],
             status=str(order.status),
             total_cents=sum(item.unit_price_cents * item.quantity for item in order.items),
-            created_at=(order.created_at.timestamp() if getattr(order, 'created_at', None) else 0.0),
+            created_at=_to_timestamp(order.created_at),
             delivery=delivery_info
         )
     except HTTPException:
@@ -2132,6 +2241,62 @@ def pay_order(order_id: str, payment_data: PayIn, uid: str = Depends(current_use
     except Exception as e:
         raise HTTPException(400, str(e))
 
+
+# ====================== STRIPE CHECKOUT (redirection Stripe) ======================
+@app.post("/orders/{order_id}/create-checkout-session")
+def create_stripe_checkout_session(
+    order_id: str,
+    uid: str = Depends(current_user_id),
+    db: Session = Depends(get_db),
+):
+    """
+    Crée une session Stripe Checkout et retourne l'URL de redirection.
+    L'utilisateur est redirigé vers la page de paiement Stripe ; les paiements apparaissent dans le Dashboard.
+    """
+    from services.payment_service import create_checkout_session
+
+    order_repo = PostgreSQLOrderRepository(db)
+    order = order_repo.get_by_id(order_id)
+    if not order or str(order.user_id) != uid:
+        raise HTTPException(404, "Commande introuvable")
+    if str(order.status) != OrderStatus.CREE.value:
+        raise HTTPException(400, "Commande déjà payée ou traitée")
+
+    total_cents = sum(item.unit_price_cents * item.quantity for item in order.items)
+    if total_cents <= 0:
+        raise HTTPException(400, "Montant invalide")
+
+    frontend_url = (os.getenv("FRONTEND_URL") or "http://localhost:5173").rstrip("/")
+    success_url = f"{frontend_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{frontend_url}/payment/{order_id}"
+
+    order_label = f"Commande #{order_id[:8]}"
+    if len(order.items) == 1:
+        order_label = getattr(order.items[0], "name", order_label) or order_label
+    else:
+        order_label = f"Commande #{order_id[:8]} ({len(order.items)} articles)"
+
+    user_repo = PostgreSQLUserRepository(db)
+    user = user_repo.get_by_id(uid)
+    customer_email = getattr(user, "email", None) if user else None
+
+    result = create_checkout_session(
+        order_id=order_id,
+        amount_cents=total_cents,
+        order_label=order_label,
+        success_url=success_url,
+        cancel_url=cancel_url,
+        customer_email=customer_email,
+    )
+
+    if "error" in result:
+        if result.get("error") == "missing_key":
+            raise HTTPException(500, "Configuration Stripe manquante (STRIPE_SECRET_KEY).")
+        raise HTTPException(502, result.get("message", "Erreur Stripe (session_failed)."))
+
+    return {"url": result["url"], "session_id": result.get("session_id")}
+
+
 # ====================== FACTURES ======================
 @app.get("/orders/{order_id}/invoice", response_model=InvoiceOut)
 def get_invoice(order_id: str, uid: str = Depends(current_user_id), db: Session = Depends(get_db)):
@@ -2173,7 +2338,7 @@ def get_invoice(order_id: str, uid: str = Depends(current_user_id), db: Session 
             number=f"INV-{str(invoice.id)[:8].upper()}",
             lines=lines,
             total_cents=cast(int, invoice.total_cents),
-            issued_at=invoice.created_at.timestamp()
+            issued_at=_to_timestamp(invoice.created_at)
         )
     except HTTPException:
         raise
@@ -2212,7 +2377,7 @@ def download_invoice_pdf(order_id: str, uid: str = Depends(current_user_id), db:
         invoice_data = {
             "id": str(invoice.id),
             "number": f"INV-{str(invoice.id)[:8].upper()}",
-            "issued_at": invoice.created_at.timestamp(),
+            "issued_at": _to_timestamp(invoice.created_at),
             "lines": [
                 {
                     "product_id": str(item.product_id),
@@ -2242,7 +2407,7 @@ def download_invoice_pdf(order_id: str, uid: str = Depends(current_user_id), db:
             payment_data = {
                 "amount_cents": payment.amount_cents,
                 "status": payment.status,
-                "created_at": payment.created_at.timestamp()
+                "created_at": _to_timestamp(payment.created_at)
             }
         
         delivery_data = None
@@ -2311,7 +2476,7 @@ def create_support_thread(thread_data: ThreadCreateIn, uid: str = Depends(curren
             order_id=str(thread.order_id) if thread.order_id is not None else None,
             subject=str(thread.subject),
             closed=bool(thread.closed),
-            created_at=thread.created_at.timestamp(),
+            created_at=_to_timestamp(thread.created_at),
             unread_count=0
         )
     except Exception as e:
@@ -2336,7 +2501,7 @@ def list_support_threads(uid: str = Depends(current_user_id), db: Session = Depe
                 order_id=str(thread.order_id) if thread.order_id is not None else None,
                 subject=str(thread.subject),
                 closed=bool(thread.closed),
-                created_at=thread.created_at.timestamp(),
+                created_at=_to_timestamp(thread.created_at),
                 unread_count=0  # Note: comptage des messages non lus à implémenter si nécessaire (non requis pour MVP)
             )
             for thread in threads
@@ -2362,7 +2527,7 @@ def get_support_thread(thread_id: str, uid: str = Depends(current_user_id), db: 
                 thread_id=str(message.thread_id),
                 author_user_id=str(message.author_user_id) if message.author_user_id is not None else None,
                 content=str(message.content),
-                created_at=message.created_at.timestamp(),
+                created_at=_to_timestamp(message.created_at),
                 author_name=message.author.first_name + " " + message.author.last_name if message.author else "Support"
             ))
         
@@ -2372,7 +2537,7 @@ def get_support_thread(thread_id: str, uid: str = Depends(current_user_id), db: 
             order_id=str(thread.order_id) if thread.order_id is not None else None,
             subject=str(thread.subject),
             closed=bool(thread.closed),
-            created_at=thread.created_at.timestamp(),
+            created_at=_to_timestamp(thread.created_at),
             unread_count=0,
             messages=messages
         )
@@ -2406,7 +2571,7 @@ def post_support_message(thread_id: str, message_data: MessageCreateIn, uid: str
             thread_id=str(message.thread_id),
             author_user_id=str(message.author_user_id) if message.author_user_id is not None else None,
             content=str(message.content),
-            created_at=message.created_at.timestamp(),
+            created_at=_to_timestamp(message.created_at),
             author_name=message.author.first_name + " " + message.author.last_name if message.author else "Support"
         )
     except HTTPException:
@@ -2452,7 +2617,7 @@ def admin_list_support_threads(u = Depends(require_admin), db: Session = Depends
                 order_id=str(thread.order_id) if thread.order_id is not None else None,
                 subject=cast(str, thread.subject),
                 closed=cast(bool, thread.closed),
-                created_at=thread.created_at.timestamp(),
+                created_at=_to_timestamp(thread.created_at),
                 unread_count=0
             )
             for thread in threads
@@ -2478,7 +2643,7 @@ def admin_get_support_thread(thread_id: str, u = Depends(require_admin), db: Ses
                 thread_id=str(message.thread_id),
                 author_user_id=str(message.author_user_id) if message.author_user_id is not None else None,
                 content=str(message.content),
-                created_at=message.created_at.timestamp(),
+                created_at=_to_timestamp(message.created_at),
                 author_name=message.author.first_name + " " + message.author.last_name if message.author else "Support"
             ))
         
@@ -2488,7 +2653,7 @@ def admin_get_support_thread(thread_id: str, u = Depends(require_admin), db: Ses
             order_id=str(thread.order_id) if thread.order_id is not None else None,
             subject=str(thread.subject),
             closed=bool(thread.closed),
-            created_at=thread.created_at.timestamp(),
+            created_at=_to_timestamp(thread.created_at),
             unread_count=0,
             messages=messages
         )
@@ -2538,7 +2703,7 @@ def admin_post_support_message(thread_id: str, message_data: MessageCreateIn, u 
             thread_id=str(message.thread_id),
             author_user_id=str(message.author_user_id) if message.author_user_id is not None else None,
             content=cast(str, message.content),
-            created_at=message.created_at.timestamp(),
+            created_at=_to_timestamp(message.created_at),
             author_name="Support Admin"
         )
     except HTTPException:
@@ -2568,26 +2733,26 @@ def admin_get_order_status(order_id: str, u = Depends(require_admin), db: Sessio
                 "transporteur": order.delivery.transporteur,
                 "tracking_number": order.delivery.tracking_number,
                 "delivery_status": order.delivery.delivery_status,
-                "created_at": order.delivery.created_at.timestamp()
+                "created_at": _to_timestamp(order.delivery.created_at)
             }
         
         return {
             "order_id": str(order.id),
             "user_id": str(order.user_id),
             "status": str(order.status),
-            "created_at": order.created_at.timestamp(),
-            "validated_at": order.validated_at.timestamp() if order.validated_at else None,
-            "shipped_at": order.shipped_at.timestamp() if order.shipped_at else None,
-            "delivered_at": order.delivered_at.timestamp() if order.delivered_at else None,
-            "cancelled_at": order.cancelled_at.timestamp() if order.cancelled_at else None,
-            "refunded_at": order.refunded_at.timestamp() if order.refunded_at else None,
+            "created_at": _to_timestamp(order.created_at),
+            "validated_at": _to_timestamp(order.validated_at),
+            "shipped_at": _to_timestamp(order.shipped_at),
+            "delivered_at": _to_timestamp(order.delivered_at),
+            "cancelled_at": _to_timestamp(order.cancelled_at),
+            "refunded_at": _to_timestamp(order.refunded_at),
             "payment_id": str(order.payment_id) if order.payment_id else None,
             "payments": [
                 {
                     "id": str(p.id),
                     "amount_cents": p.amount_cents,
                     "status": p.status,
-                    "created_at": p.created_at.timestamp()
+                    "created_at": _to_timestamp(p.created_at)
                 } for p in payments
             ],
             "delivery": delivery_info,
@@ -2677,57 +2842,79 @@ def admin_mark_delivered(order_id: str, u = Depends(require_admin), db: Session 
 
 @app.post("/admin/orders/{order_id}/refund")
 def admin_refund_order(order_id: str, refund_data: RefundIn, u = Depends(require_admin), db: Session = Depends(get_db)):
-    """Rembourse une commande"""
+    """
+    Rembourse une commande côté métier + Stripe (via PaymentService),
+    sur validation explicite d'un admin.
+    """
     try:
-        order_repo = PostgreSQLOrderRepository(db)
-        payment_repo = PostgreSQLPaymentRepository(db)
-        product_repo = PostgreSQLProductRepository(db)
-        
-        order = order_repo.get_by_id(order_id)
-        if not order:
-            raise HTTPException(404, "Commande introuvable")
-        
-        # Vérifier que la commande peut être remboursée
-        if str(order.status) not in [OrderStatus.PAYEE.value, OrderStatus.EXPEDIEE.value, OrderStatus.LIVREE.value]:
-            raise HTTPException(400, f"Commande non remboursable (statut actuel: {order.status})")
-        
-        # Récupérer le paiement
-        payments = payment_repo.get_by_order_id(order_id)
-        if not payments:
-            raise HTTPException(400, "Aucun paiement trouvé")
-        
-        # Remettre le stock en place pour chaque article
-        for item in order.items:
-            product = product_repo.get_by_id(str(item.product_id))
-            if product:
-                # Remettre le stock
-                product.stock_qty += item.quantity
-                
-                # Réactiver le produit s'il était inactif à cause du stock
-                if not product.active and product.stock_qty > 0:
-                    product.active = True  # type: ignore
-                    # Produit réactivé automatiquement (remboursement)
-                
-                product_repo.update(product)
-        
-        # Mettre à jour le statut et le timestamp UNIQUEMENT pour cette commande spécifique
-        order.status = OrderStatus.REMBOURSEE  # type: ignore
-        order.refunded_at = datetime.now(UTC)  # type: ignore
-        # Utiliser update() qui modifie UNIQUEMENT cette commande, pas les autres
-        order_repo.update(order)
-        
-        # Mettre à jour le statut des paiements UNIQUEMENT pour cette commande
-        for payment in payments:
-            payment.status = "REFUNDED"  # type: ignore
-        # order_repo.update() a déjà fait le commit, mais on commit aussi les paiements
-        db.commit()
-        
-        return {"ok": True, "message": f"Commande {order_id} remboursée avec succès"}
+        # Utiliser le conteneur de services pour bénéficier de la logique métier complète
+        from services.service_container import ServiceContainer
+
+        container = ServiceContainer(db)
+        order_service = container.get_order_service()
+
+        # amount_cents optionnel : si None, on remboursera le total de la commande
+        amount_cents = refund_data.amount_cents
+
+        order = order_service.backoffice_refund(
+            admin_user_id=str(u.id),
+            order_id=order_id,
+            amount_cents=amount_cents,
+        )
+
+        return {
+            "ok": True,
+            "message": f"Commande {order_id} remboursée avec succès",
+            "order_id": str(order.id),
+            "status": str(order.status),
+        }
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     except HTTPException:
         raise
     except Exception as e:
-        # Erreur lors du remboursement de la commande
+        # Erreur générique lors du remboursement
         raise HTTPException(400, f"Erreur lors du remboursement: {str(e)}")
+
+
+@app.post("/admin/orders/{order_id}/refund-reject")
+def admin_refund_reject(
+    order_id: str,
+    body: Optional[RefundRejectIn] = None,
+    u=Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Refuse la demande de remboursement pour une commande.
+    Envoie un message au client dans le fil support (si existant) et ferme le fil.
+    """
+    order_repo = PostgreSQLOrderRepository(db)
+    order = order_repo.get_by_id(order_id)
+    if not order:
+        raise HTTPException(404, "Commande introuvable")
+
+    thread_repo = PostgreSQLThreadRepository(db)
+    threads = thread_repo.get_by_order_id(order_id)
+    reason = (body.reason if body else None) or ""
+    reason = reason.strip()
+    msg_content = "Remboursement refusé pour cette commande."
+    if reason:
+        msg_content += f" Motif : {reason}"
+
+    for thread in threads:
+        if not getattr(thread, "closed", False) and "remboursement" in (getattr(thread, "subject", "") or "").lower():
+            thread_repo.add_message(
+                str(thread.id),
+                {"content": msg_content, "is_admin": True},
+            )
+            thread.closed = True  # type: ignore
+            db.commit()
+            db.refresh(thread)
+
+    return {"ok": True, "message": "Demande de remboursement refusée."}
+
 
 @app.post("/admin/orders/{order_id}/cancel")
 def admin_cancel_order(order_id: str, u = Depends(require_admin), db: Session = Depends(get_db)):
@@ -2812,5 +2999,5 @@ def admin_cancel_order(order_id: str, u = Depends(require_admin), db: Session = 
 
 if __name__ == "__main__":
     import uvicorn
-    # Démarrage de l'API e-commerce
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    # Démarrage de l'API e-commerce (import string requis pour reload=True)
+    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)

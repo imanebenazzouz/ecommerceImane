@@ -36,6 +36,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Cart from "./pages/Cart";
 import Payment from "./pages/Payment";
+import PaymentSuccess from "./pages/PaymentSuccess";
 import Admin from "./pages/Admin";
 import Profile from "./pages/Profile";
 import Orders from "./pages/Orders";
@@ -117,6 +118,11 @@ function AppContent() {
         <Route path="/payment/:orderId" element={
           <ProtectedRoute requireAuth={true}>
             <Payment />
+          </ProtectedRoute>
+        } />
+        <Route path="/payment/success" element={
+          <ProtectedRoute requireAuth={true}>
+            <PaymentSuccess />
           </ProtectedRoute>
         } />
         <Route path="/orders" element={

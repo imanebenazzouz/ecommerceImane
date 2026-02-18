@@ -382,7 +382,7 @@ export default function Cart() {
     if (pending) return; // Si déjà en cours, ignorer le clic
     
     setErr(""); setMsg("");
-    
+
     // Vérification d'authentification avant le paiement
     if (!isAuthenticated()) {
       // Redirection vers login avec paramètre de retour
@@ -397,15 +397,23 @@ export default function Cart() {
     }
     
     setPending(true); // Mettre pending AVANT toute autre opération
-    
     try {
-
+      // 1) Créer la commande côté backend
       const res = await api.checkout();
-      setOrderId(res.order_id);
-      setShowPaymentModal(true);
-      setMsg("Commande créée avec succès !");
+
+      // 2) Créer une session Stripe Checkout pour cette commande
+      const { url } = await api.createCheckoutSession(res.order_id);
+
+      // 3) Rediriger immédiatement l'utilisateur vers la page Stripe
+      if (url) {
+        window.location.href = url;
+        return;
+      }
+
+      // Fallback si pas d'URL retournée
+      setErr("Impossible de créer la session de paiement Stripe.");
     } catch (e) {
-      setErr(e.message);
+      setErr(e.message || "Erreur lors de la création de la commande ou de la session Stripe.");
     } finally {
       setPending(false);
     }
