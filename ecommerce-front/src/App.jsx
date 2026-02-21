@@ -34,6 +34,8 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import ResetPasswordSimple from "./pages/ResetPasswordSimple";
+import ResetPasswordPublic from "./pages/ResetPasswordPublic";
 import Cart from "./pages/Cart";
 import Payment from "./pages/Payment";
 import PaymentSuccess from "./pages/PaymentSuccess";
@@ -108,6 +110,7 @@ function AppContent() {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/reset-password-simple" element={<ResetPasswordPublic />} />
 
         {/* ✅ Routes utilisateur connecté */}
         <Route path="/profile" element={
@@ -165,6 +168,11 @@ function AppContent() {
         <Route path="/admin/support" element={
           <ProtectedRoute requireAuth={true} requireAdmin={true}>
             <AdminSupport />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/reset-password" element={
+          <ProtectedRoute requireAuth={true} requireAdmin={true}>
+            <ResetPasswordSimple />
           </ProtectedRoute>
         } />
 

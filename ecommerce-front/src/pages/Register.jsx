@@ -27,8 +27,10 @@ export default function Register() {
     postal_code:""
   });
   const [addressValidated, setAddressValidated] = useState(false);
+  const [manualMode, setManualMode] = useState(false);
+  const [manualAddress, setManualAddress] = useState("");
   const [errors, setErrors] = useState({});
-  const [err, setErr] = useState(""); 
+  const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
   const [pending, setPending] = useState(false);
 
@@ -69,8 +71,14 @@ export default function Register() {
       return;
     }
     
-    // Validation adresse : doit être sélectionnée depuis l'API
-    if (!addressValidated || !form.street_number || !form.street_name || !form.postal_code) {
+    // Validation adresse
+    if (manualMode) {
+      if (!manualAddress || manualAddress.trim().length < 10 || !/\b\d{5}\b/.test(manualAddress)) {
+        setErr("L'adresse doit contenir un code postal valide (5 chiffres). Ex: 12 rue de la Paix 75001 Paris");
+        setPending(false);
+        return;
+      }
+    } else if (!addressValidated || !form.postal_code) {
       setErr("Vous devez sélectionner une adresse depuis la recherche ci-dessus");
       setErrors({ ...errors, address: "Adresse requise - sélectionnez depuis la recherche" });
       setPending(false);
@@ -123,7 +131,9 @@ export default function Register() {
     }
     
     // Reconstruire l'adresse complète pour le backend
-    const fullAddress = buildFullAddress(form.street_number, form.street_name, form.postal_code);
+    const fullAddress = manualMode
+      ? manualAddress.trim()
+      : buildFullAddress(form.street_number, form.street_name, form.postal_code);
     
     try {
       await api.register({
@@ -134,16 +144,18 @@ export default function Register() {
         address: fullAddress,
       });
       setOk("Compte créé avec succès ! Redirection..."); 
-      setForm({ 
-        email:"", 
-        password:"", 
-        confirm:"", 
-        first_name:"", 
-        last_name:"", 
+      setForm({
+        email:"",
+        password:"",
+        confirm:"",
+        first_name:"",
+        last_name:"",
         street_number:"",
         street_name:"",
         postal_code:""
       });
+      setManualAddress("");
+      setManualMode(false);
       setErrors({});
       
       // Redirection vers la page de connexion après 1.5 secondes
@@ -270,47 +282,78 @@ export default function Register() {
                 <label className="form-label" style={{ marginBottom: "var(--space-2)" }}>
                   Adresse <span style={{ color: "#dc2626" }}>*</span>
                 </label>
-                
-                {/* Autocomplétion d'adresse avec API gouvernementale - OBLIGATOIRE */}
-                <AddressAutocomplete
-                  streetNumber={form.street_number}
-                  streetName={form.street_name}
-                  postalCode={form.postal_code}
-                  onSelect={(addressData) => {
-                    setForm({
-                      ...form,
-                      street_number: addressData.streetNumber || "",
-                      street_name: addressData.streetName || "",
-                      postal_code: addressData.postalCode || "",
-                    });
-                    setAddressValidated(true);
-                    // Effacer les erreurs
-                    setErrors({ ...errors, address: null });
-                  }}
-                  onChange={onChange}
-                  errors={errors}
-                  required={true}
-                  isValidated={addressValidated}
-                />
-                
-                {errors.address && (
-                  <small style={{ color: "#dc2626", fontSize: 12, display: "block", marginTop: 4 }}>
-                    {errors.address}
-                  </small>
-                )}
-                
-                {addressValidated && (
-                  <div style={{ 
-                    marginTop: 8, 
-                    padding: 8, 
-                    backgroundColor: "#f0fdf4", 
-                    border: "1px solid #10b981", 
-                    borderRadius: 6,
-                    fontSize: 13,
-                    color: "#065f46"
-                  }}>
-                    ✅ Adresse validée : {form.street_number} {form.street_name}, {form.postal_code}
-                  </div>
+
+                {!manualMode ? (
+                  <>
+                    {/* Autocomplétion d'adresse avec API gouvernementale */}
+                    <AddressAutocomplete
+                      streetNumber={form.street_number}
+                      streetName={form.street_name}
+                      postalCode={form.postal_code}
+                      onSelect={(addressData) => {
+                        setForm({
+                          ...form,
+                          street_number: addressData.streetNumber || "",
+                          street_name: addressData.streetName || "",
+                          postal_code: addressData.postalCode || "",
+                        });
+                        setAddressValidated(true);
+                        setErrors({ ...errors, address: null });
+                      }}
+                      onChange={onChange}
+                      errors={errors}
+                      required={true}
+                      isValidated={addressValidated}
+                    />
+
+                    {errors.address && (
+                      <small style={{ color: "#dc2626", fontSize: 12, display: "block", marginTop: 4 }}>
+                        {errors.address}
+                      </small>
+                    )}
+
+                    {addressValidated && (
+                      <div style={{
+                        marginTop: 8,
+                        padding: 8,
+                        backgroundColor: "#f0fdf4",
+                        border: "1px solid #10b981",
+                        borderRadius: 6,
+                        fontSize: 13,
+                        color: "#065f46"
+                      }}>
+                        ✅ Adresse validée : {form.street_number} {form.street_name}, {form.postal_code}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setManualMode(true)}
+                      style={{ fontSize: 12, color: "#6b7280", cursor: "pointer", background: "none", border: "none", padding: "6px 0 0", display: "block", textDecoration: "underline" }}
+                    >
+                      Je ne trouve pas mon adresse, saisir manuellement
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      value={manualAddress}
+                      onChange={(e) => setManualAddress(e.target.value)}
+                      placeholder="Ex: 12 rue de la Paix 75001 Paris"
+                      className="form-input"
+                    />
+                    <small style={{ fontSize: 11, color: "#6b7280", display: "block", marginTop: 4 }}>
+                      Incluez le numéro, le nom de rue et le code postal (5 chiffres obligatoire)
+                    </small>
+                    <button
+                      type="button"
+                      onClick={() => { setManualMode(false); setManualAddress(""); }}
+                      style={{ fontSize: 12, color: "#6b7280", cursor: "pointer", background: "none", border: "none", padding: "6px 0 0", display: "block", textDecoration: "underline" }}
+                    >
+                      Utiliser la recherche automatique
+                    </button>
+                  </>
                 )}
               </div>
 

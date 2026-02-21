@@ -21,7 +21,7 @@ import React, { useEffect, useState } from "react"; // React : bibliothèque pou
                                                      // useEffect : pour exécuter du code au chargement
                                                      // useState : pour gérer l'état des données
 import { Link } from "react-router-dom";            // Link : composant pour la navigation
-import { api } from "../lib/api";                    // api : client HTTP pour appeler le backend
+import { api, getImageUrl } from "../lib/api";      // api + getImageUrl pour URLs images
 import { useAuth } from "../hooks/useAuth";          // useAuth : hook personnalisé pour vérifier si l'utilisateur est connecté
 import "../styles/catalog.css";                      // Styles CSS spécifiques à cette page
 
@@ -209,17 +209,6 @@ export default function Catalog() {
   });
 
   // ===== HELPER POUR CONSTRUIRE L'URL DE L'IMAGE =====
-  const getImageUrl = (imageUrl) => {
-    if (!imageUrl) return null;
-    // Si l'URL commence déjà par http, la retourner telle quelle
-    if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
-      return imageUrl;
-    }
-    // Sinon, construire l'URL complète avec l'API base
-    const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:8000";
-    return `${apiBase}${imageUrl}`;
-  };
-
   // ===== RENDU JSX (INTERFACE VISUELLE) =====
   // JSX = mélange de HTML et JavaScript pour créer l'interface React
   // Tout ce qui est dans return() sera affiché à l'écran

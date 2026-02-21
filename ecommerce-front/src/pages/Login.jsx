@@ -152,7 +152,7 @@ export default function Login() {
 
               <div className="auth-links">
                 <Link to="/reset-password-simple" className="auth-link">
-                  Modifier le mot de passe
+                  Mot de passe oublié ?
                 </Link>
               </div>
             </form>

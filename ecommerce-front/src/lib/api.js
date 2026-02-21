@@ -10,7 +10,7 @@
  * Si non défini, utilise le même host que la page (évite localhost vs 127.0.0.1).
  * @type {string}
  */
-function getApiBase() {
+export function getApiBase() {
   if (import.meta.env.VITE_API_BASE) return import.meta.env.VITE_API_BASE;
   if (typeof window !== "undefined" && window.location?.hostname) {
     return `${window.location.protocol}//${window.location.hostname}:8000`;
@@ -18,6 +18,19 @@ function getApiBase() {
   return "http://localhost:8000";
 }
 const API = getApiBase();
+
+/**
+ * Construit l'URL complète d'une image produit (path relatif type /static/images/xxx).
+ * Utilise la même base que l'API pour que les images s'affichent en dev et en production.
+ * @param {string|null|undefined} imageUrl - URL relative (ex: /static/images/xxx.jpg) ou absolue
+ * @returns {string|null} URL complète ou null si imageUrl vide
+ */
+export function getImageUrl(imageUrl) {
+  if (!imageUrl) return null;
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) return imageUrl;
+  const base = getApiBase();
+  return `${base.replace(/\/$/, "")}${imageUrl.startsWith("/") ? imageUrl : "/" + imageUrl}`;
+}
 
 // --- Token helpers ---
 /**

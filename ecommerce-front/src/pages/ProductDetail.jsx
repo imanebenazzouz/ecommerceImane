@@ -15,7 +15,7 @@
 // ========== IMPORTS ==========
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { api } from "../lib/api";
+import { api, getImageUrl } from "../lib/api";
 import { useAuth } from "../hooks/useAuth";
 import "../styles/global.css";
 
@@ -159,18 +159,6 @@ export default function ProductDetail() {
   const price = product.price_cents || (product.price ? Math.round(product.price * 100) : 0);
   const stock = product.stock_qty || product.stock || 0;
   const isAvailable = product.active && stock > 0;
-
-  // Helper pour construire l'URL complète de l'image
-  const getImageUrl = (imageUrl) => {
-    if (!imageUrl) return null;
-    // Si l'URL commence déjà par http, la retourner telle quelle
-    if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
-      return imageUrl;
-    }
-    // Sinon, construire l'URL complète avec l'API base
-    const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:8000";
-    return `${apiBase}${imageUrl}`;
-  };
 
   // Utiliser l'image du produit si elle existe
   const mainImageUrl = product.image_url ? getImageUrl(product.image_url) : null;

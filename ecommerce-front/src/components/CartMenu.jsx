@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { api } from "../lib/api";
+import { api, getImageUrl } from "../lib/api";
 import "../styles/global.css";
 
 /**
@@ -341,9 +341,7 @@ export default function CartMenu({ isOpen, onClose }) {
                       {product?.image_url && (
                         <div className="cart-menu__item-image">
                           <img 
-                            src={product.image_url.startsWith("http") 
-                              ? product.image_url 
-                              : `${import.meta.env.VITE_API_BASE || "http://localhost:8000"}${product.image_url}`}
+                            src={getImageUrl(product.image_url)}
                             alt={name}
                             onError={(e) => {
                               e.target.style.display = "none";

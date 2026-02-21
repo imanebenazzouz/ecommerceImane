@@ -2,8 +2,8 @@
 //
 // Espace administrateur: CRUD produits et consultation/gestion des commandes.
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { api } from "../lib/api";
+import { useNavigate, Link } from "react-router-dom";
+import { api, getImageUrl } from "../lib/api";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -104,12 +104,7 @@ export default function Admin() {
     setErr("");
     try {
       const result = await api.adminUploadImage(file);
-      // Construire l'URL complète avec le base URL de l'API
-      const apiBase = import.meta.env.VITE_API_BASE || "http://localhost:8000";
-      const fullImageUrl = result.image_url.startsWith("http") 
-        ? result.image_url 
-        : `${apiBase}${result.image_url}`;
-      
+      const fullImageUrl = getImageUrl(result.image_url) || result.image_url;
       setForm(f => ({ ...f, image_url: fullImageUrl }));
       setImagePreview(fullImageUrl);
       setMsg("Image uploadée avec succès");
@@ -258,6 +253,10 @@ export default function Admin() {
         <p style={{ color: "#64748b", marginTop: 6 }}>
           Gérer le catalogue produits (créer, éditer, supprimer).
         </p>
+        <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+          <Link to="/admin/support" style={adminLinkStyle}>Support</Link>
+          <Link to="/admin/reset-password" style={adminLinkStyle}>Réinitialiser un mot de passe</Link>
+        </div>
       </header>
 
       {/* Alerts */}
@@ -418,7 +417,7 @@ export default function Admin() {
             {form.image_url && !imagePreview && (
               <div style={{ marginTop: 12 }}>
                 <img 
-                  src={form.image_url} 
+                  src={getImageUrl(form.image_url) || form.image_url} 
                   alt="Image actuelle" 
                   style={{ 
                     maxWidth: "200px", 
@@ -740,6 +739,17 @@ export default function Admin() {
     </div>
   );
 }
+
+const adminLinkStyle = {
+  padding: "6px 14px",
+  backgroundColor: "#f1f5f9",
+  color: "#1e40af",
+  border: "1px solid #cbd5e1",
+  borderRadius: 6,
+  fontSize: 14,
+  textDecoration: "none",
+  fontWeight: 500,
+};
 
 const fieldStyle = {
   width: "100%",
